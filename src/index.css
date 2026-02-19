@@ -40,6 +40,11 @@ All colors MUST be HSL.
 
     --radius: 0rem;
 
+    --success: 142 71% 45%;
+    --success-foreground: 142 76% 97%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 38 92% 10%;
+
     --sidebar-background: 0 0% 98%;
 
     --sidebar-foreground: 222 47% 11%;
@@ -119,6 +124,11 @@ All colors MUST be HSL.
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 85% 97%;
+
+    --success: 142 60% 50%;
+    --success-foreground: 142 76% 97%;
+    --warning: 38 80% 55%;
+    --warning-foreground: 38 92% 10%;
 
     --border: 215 19% 34%;
     --input: 215 19% 34%;
