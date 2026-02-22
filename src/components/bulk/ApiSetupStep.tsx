@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Eye, EyeOff, Key, Shield, Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 export function ApiSetupStep() {
   const { state, dispatch, cfProxy } = useBulkManager();
@@ -26,11 +27,9 @@ export function ApiSetupStep() {
       // Temporarily set credentials so cfProxy can use them
       dispatch({ type: "SET_CREDENTIALS", apiToken: apiToken.trim(), accountId: accountId.trim() });
 
-      const { data: _, error } = await import("@/integrations/supabase/client").then(({ supabase }) =>
-        supabase.functions.invoke("cloudflare-bulk-proxy", {
-          body: { action: "verify-token", apiToken: apiToken.trim(), accountId: accountId.trim() },
-        })
-      );
+      const { data: _, error } = await supabase.functions.invoke("cloudflare-bulk-proxy", {
+        body: { action: "verify-token", apiToken: apiToken.trim(), accountId: accountId.trim() },
+      });
 
       if (error) throw new Error(error.message);
 
