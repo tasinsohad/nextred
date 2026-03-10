@@ -89,18 +89,34 @@ function ProgressBar() {
 
 function WizardContent() {
   const { state } = useBulkManager();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/auth");
+  };
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground">
-            <CloudCog className="h-5 w-5" />
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground">
+              <CloudCog className="h-5 w-5" />
+            </div>
+            <div>
+              <h1 className="font-bold text-base leading-tight">Cloudflare Bulk Manager</h1>
+              <p className="text-xs text-muted-foreground">DNS Records & Redirect Manager</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-base leading-tight">Cloudflare Bulk Manager</h1>
-            <p className="text-xs text-muted-foreground">DNS Records & Redirect Manager</p>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-muted-foreground hidden sm:block">{user?.email}</span>
+            <Button variant="ghost" size="sm" onClick={handleSignOut}>
+              <LogOut className="h-4 w-4 mr-1" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </header>
