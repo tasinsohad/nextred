@@ -2,14 +2,12 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
-import Index from "./pages/Index";
+import { AppLayout } from "@/components/AppLayout";
 import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Domains from "./pages/Domains";
-import Analytics from "./pages/Analytics";
-import Settings from "./pages/Settings";
+import DashboardHome from "./pages/DashboardHome";
+import TeamPage from "./pages/TeamPage";
 import BulkManager from "./pages/BulkManager";
 import NotFound from "./pages/NotFound";
 
@@ -23,14 +21,11 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<BulkManager />} />
-            <Route path="/legacy" element={<Index />} />
+            <Route path="/" element={<Navigate to="/app" replace />} />
             <Route path="/auth" element={<Auth />} />
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/domains" element={<Domains />} />
-            <Route path="/dashboard/analytics" element={<Analytics />} />
-            <Route path="/dashboard/settings" element={<Settings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="/app" element={<AppLayout><DashboardHome /></AppLayout>} />
+            <Route path="/app/bulk" element={<AppLayout><BulkManager /></AppLayout>} />
+            <Route path="/app/team" element={<AppLayout><TeamPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

@@ -1,6 +1,3 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
 import { BulkManagerProvider, useBulkManager } from "@/hooks/useBulkManager";
 import { ApiSetupStep } from "@/components/bulk/ApiSetupStep";
 import { DomainInputStep } from "@/components/bulk/DomainInputStep";
@@ -12,22 +9,7 @@ import { ReviewStep } from "@/components/bulk/ReviewStep";
 import { ExecutionStep } from "@/components/bulk/ExecutionStep";
 import { SummaryStep } from "@/components/bulk/SummaryStep";
 import { cn } from "@/lib/utils";
-import { CloudCog, LogOut } from "lucide-react";
-import { Button } from "@/components/ui/button";
 
-const STEPS = [
-  { key: "api-setup", label: "Connect" },
-  { key: "domain-input", label: "Domains" },
-  { key: "domain-validation", label: "Validate" },
-  { key: "mode-selection", label: "Mode" },
-  { key: "redirect-config", label: "Config" },
-  { key: "dns-config", label: "Config" },
-  { key: "review", label: "Review" },
-  { key: "execution", label: "Execute" },
-  { key: "summary", label: "Done" },
-] as const;
-
-// Visible steps for progress indicator (excluding mode-specific config duplicates)
 const PROGRESS_STEPS = [
   { keys: ["api-setup"], label: "Connect" },
   { keys: ["domain-input"], label: "Domains" },
@@ -89,76 +71,32 @@ function ProgressBar() {
 
 function WizardContent() {
   const { state } = useBulkManager();
-  const { user, signOut } = useAuth();
-  const navigate = useNavigate();
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate("/auth");
-  };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-9 h-9 rounded-lg bg-primary text-primary-foreground">
-              <CloudCog className="h-5 w-5" />
-            </div>
-            <div>
-              <h1 className="font-bold text-base leading-tight">Cloudflare Bulk Manager</h1>
-              <p className="text-xs text-muted-foreground">DNS Records & Redirect Manager</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-muted-foreground hidden sm:block">{user?.email}</span>
-            <Button variant="ghost" size="sm" onClick={handleSignOut}>
-              <LogOut className="h-4 w-4 mr-1" />
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
+    <div>
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold">Bulk Manager</h2>
+        <p className="text-muted-foreground">Manage DNS records and redirects across multiple domains</p>
+      </div>
 
-      {/* Main content */}
-      <main className="max-w-4xl mx-auto px-4 py-8">
-        <ProgressBar />
+      <ProgressBar />
 
-        <div className="animate-in fade-in-0 duration-200">
-          {state.step === "api-setup" && <ApiSetupStep />}
-          {state.step === "domain-input" && <DomainInputStep />}
-          {state.step === "domain-validation" && <DomainValidationStep />}
-          {state.step === "mode-selection" && <ModeSelectionStep />}
-          {state.step === "redirect-config" && <RedirectConfigStep />}
-          {state.step === "dns-config" && <DnsConfigStep />}
-          {state.step === "review" && <ReviewStep />}
-          {state.step === "execution" && <ExecutionStep />}
-          {state.step === "summary" && <SummaryStep />}
-        </div>
-      </main>
+      <div className="animate-in fade-in-0 duration-200">
+        {state.step === "api-setup" && <ApiSetupStep />}
+        {state.step === "domain-input" && <DomainInputStep />}
+        {state.step === "domain-validation" && <DomainValidationStep />}
+        {state.step === "mode-selection" && <ModeSelectionStep />}
+        {state.step === "redirect-config" && <RedirectConfigStep />}
+        {state.step === "dns-config" && <DnsConfigStep />}
+        {state.step === "review" && <ReviewStep />}
+        {state.step === "execution" && <ExecutionStep />}
+        {state.step === "summary" && <SummaryStep />}
+      </div>
     </div>
   );
 }
 
 export default function BulkManager() {
-  const { user, loading } = useAuth();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate("/auth");
-    }
-  }, [user, loading, navigate]);
-
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
   return (
     <BulkManagerProvider>
       <WizardContent />
