@@ -1,3 +1,6 @@
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
 import { BulkManagerProvider, useBulkManager } from "@/hooks/useBulkManager";
 import { ApiSetupStep } from "@/components/bulk/ApiSetupStep";
 import { DomainInputStep } from "@/components/bulk/DomainInputStep";
@@ -9,7 +12,8 @@ import { ReviewStep } from "@/components/bulk/ReviewStep";
 import { ExecutionStep } from "@/components/bulk/ExecutionStep";
 import { SummaryStep } from "@/components/bulk/SummaryStep";
 import { cn } from "@/lib/utils";
-import { CloudCog } from "lucide-react";
+import { CloudCog, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const STEPS = [
   { key: "api-setup", label: "Connect" },
