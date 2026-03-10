@@ -49,10 +49,15 @@ export function useOperationLogs() {
     load();
   }, [user]);
 
-  const logOperation = async (log: { team_id?: string | null; operation_type: string; domains_count: number; success_count: number; failure_count: number; details?: Record<string, unknown> }) => {
+  const logOperation = async (log: { team_id?: string | null; operation_type: string; domains_count: number; success_count: number; failure_count: number; details?: Record<string, string> }) => {
     if (!user) return;
     await supabase.from('operation_logs').insert([{
-      ...log,
+      operation_type: log.operation_type,
+      domains_count: log.domains_count,
+      success_count: log.success_count,
+      failure_count: log.failure_count,
+      team_id: log.team_id || undefined,
+      details: log.details ? JSON.parse(JSON.stringify(log.details)) : undefined,
       user_id: user.id,
     }]);
   };
