@@ -49,12 +49,12 @@ export function useOperationLogs() {
     load();
   }, [user]);
 
-  const logOperation = async (log: Omit<OperationLog, 'id' | 'created_at' | 'user_id'>) => {
+  const logOperation = async (log: { team_id?: string | null; operation_type: string; domains_count: number; success_count: number; failure_count: number; details?: Record<string, unknown> }) => {
     if (!user) return;
-    await supabase.from('operation_logs').insert({
+    await supabase.from('operation_logs').insert([{
       ...log,
       user_id: user.id,
-    });
+    }]);
   };
 
   return { logs, loading, stats, logOperation };
