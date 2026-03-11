@@ -68,13 +68,17 @@ export function ApiSetupStep() {
     }
     setVerifying(true);
     try {
-      dispatch({ type: "SET_CREDENTIALS", apiToken: apiToken.trim(), accountId: accountId.trim() });
-
-      const { data: _, error } = await supabase.functions.invoke("cloudflare-bulk-proxy", {
+      const { data, error } = await supabase.functions.invoke("cloudflare-bulk-proxy", {
         body: { action: "verify-token", apiToken: apiToken.trim(), accountId: accountId.trim() },
       });
 
       if (error) throw new Error(error.message);
+      if (!data?.success) {
+        const errMsg = data?.errors?.[0]?.message ?? "Token verification failed. Check your API token.";
+        throw new Error(errMsg);
+      }
+
+      dispatch({ type: "SET_CREDENTIALS", apiToken: apiToken.trim(), accountId: accountId.trim() });
 
       // Save credentials if requested
       if (saveCredentials && credentialName.trim() && user) {
