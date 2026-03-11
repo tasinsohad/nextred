@@ -9,6 +9,7 @@ import Auth from "./pages/Auth";
 import DashboardHome from "./pages/DashboardHome";
 import TeamPage from "./pages/TeamPage";
 import BulkManager from "./pages/BulkManager";
+import SubdomainRedirects from "./pages/SubdomainRedirects";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
