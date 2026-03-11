@@ -136,7 +136,6 @@ serve(async (req) => {
 
       // Create bulk redirect via Ruleset API (single redirect rule)
       case "create-redirect-ruleset": {
-        // data = { targetUrl, redirectType (301|302), domainName }
         const { targetUrl, redirectType, domainName } = data as {
           targetUrl: string;
           redirectType: "301" | "302";
@@ -144,7 +143,6 @@ serve(async (req) => {
         };
         const statusCode = parseInt(redirectType, 10);
 
-        // First, try to get existing redirect ruleset
         const rulesetsRes = await cfFetch(apiToken, `/zones/${zoneId}/rulesets`);
         const existingRedirectRuleset = (rulesetsRes.result ?? []).find(
           (rs: { phase: string }) => rs.phase === "http_request_dynamic_redirect"
@@ -165,10 +163,8 @@ serve(async (req) => {
 
         let createResult;
         if (existingRedirectRuleset) {
-          // Update existing ruleset
           const currentRuleset = await cfFetch(apiToken, `/zones/${zoneId}/rulesets/${existingRedirectRuleset.id}`);
           const existingRules = currentRuleset.result?.rules ?? [];
-          // Remove old rules for this domain
           const filteredRules = existingRules.filter(
             (r: { description?: string }) => !r.description?.includes(`for ${domainName}`)
           );
@@ -177,7 +173,6 @@ serve(async (req) => {
             body: JSON.stringify({ rules: [...filteredRules, rulePayload] }),
           });
         } else {
-          // Create new ruleset
           createResult = await cfFetch(apiToken, `/zones/${zoneId}/rulesets`, {
             method: "POST",
             body: JSON.stringify({
@@ -189,6 +184,31 @@ serve(async (req) => {
           });
         }
         result = { success: createResult.success, errors: createResult.errors };
+        break;
+      }
+
+      // Get zone info
+      case "get-zone-info": {
+        const r = await cfFetch(apiToken, `/zones/${zoneId}`);
+        result = { success: r.success, zone: r.result, errors: r.errors };
+        break;
+      }
+
+      // Get redirect ruleset entrypoint
+      case "get-redirect-ruleset": {
+        const r = await cfFetch(apiToken, `/zones/${zoneId}/rulesets/phases/http_request_dynamic_redirect/entrypoint`);
+        result = { success: r.success, ruleset: r.result, errors: r.errors };
+        break;
+      }
+
+      // Deploy full redirect ruleset via PUT entrypoint
+      case "deploy-redirect-ruleset": {
+        // data.rules = array of rule objects to deploy
+        const r = await cfFetch(apiToken, `/zones/${zoneId}/rulesets/phases/http_request_dynamic_redirect/entrypoint`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        });
+        result = { success: r.success, ruleset: r.result, errors: r.errors };
         break;
       }
 

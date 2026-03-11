@@ -13,6 +13,7 @@ interface AppLayoutProps {
 const navItems = [
   { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/app/bulk', label: 'Bulk Manager', icon: ArrowRightLeft },
+  { href: '/app/subdomain-redirects', label: 'Subdomain Redirects', icon: GitBranchPlus },
   { href: '/app/team', label: 'Team', icon: Users },
 ];
 

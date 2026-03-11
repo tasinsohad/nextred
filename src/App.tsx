@@ -26,6 +26,7 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
             <Route path="/app" element={<AppLayout><DashboardHome /></AppLayout>} />
             <Route path="/app/bulk" element={<AppLayout><BulkManager /></AppLayout>} />
+            <Route path="/app/subdomain-redirects" element={<AppLayout><SubdomainRedirects /></AppLayout>} />
             <Route path="/app/team" element={<AppLayout><TeamPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
