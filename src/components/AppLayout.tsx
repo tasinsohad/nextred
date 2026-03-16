@@ -11,11 +11,11 @@ interface AppLayoutProps {
 }
 
 const navItems = [
-  { href: '/app', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/app/bulk', label: 'Bulk Manager', icon: ArrowRightLeft },
-  { href: '/app/subdomain-redirects', label: 'Subdomain Redirects', icon: GitBranchPlus },
-  { href: '/app/team', label: 'Team', icon: Users },
-];
+{ href: '/app', label: 'Dashboard', icon: LayoutDashboard },
+{ href: '/app/bulk', label: 'Bulk Manager', icon: ArrowRightLeft },
+{ href: '/app/subdomain-redirects', label: 'Subdomain Redirects', icon: GitBranchPlus },
+{ href: '/app/team', label: 'Team', icon: Users }];
+
 
 export function AppLayout({ children }: AppLayoutProps) {
   const { user, signOut, loading } = useAuth();
@@ -33,8 +33,8 @@ export function AppLayout({ children }: AppLayoutProps) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
+      </div>);
+
   }
 
   const handleSignOut = async () => {
@@ -63,30 +63,30 @@ export function AppLayout({ children }: AppLayoutProps) {
         <div className="flex flex-col h-full">
           <div className="h-14 flex items-center gap-2 px-5 border-b border-border">
             <CloudCog className="h-5 w-5 text-primary" />
-            <span className="font-bold">CF Bulk Manager</span>
+            <span className="font-bold">
+</span>
           </div>
 
           <nav className="flex-1 px-3 py-4 space-y-1">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.href || 
-                (item.href !== '/app' && location.pathname.startsWith(item.href));
-              return (
-                <Link
-                  key={item.href}
-                  to={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                  )}
-                >
+            {navItems.map((item) => {const isActive = location.pathname === item.href ||
+                item.href !== '/app' && location.pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.href}
+                    to={item.href}
+                    onClick={() => setSidebarOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-md transition-colors",
+                      isActive ?
+                      "bg-primary text-primary-foreground" :
+                      "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}>
+                  
                   <item.icon className="h-4 w-4" />
                   {item.label}
-                </Link>
-              );
-            })}
+                </Link>);
+
+              })}
           </nav>
 
           <div className="p-4 border-t border-border">
@@ -106,15 +106,15 @@ export function AppLayout({ children }: AppLayoutProps) {
         </div>
       </aside>
 
-      {sidebarOpen && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
+      {sidebarOpen &&
+      <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-30 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      }
 
       <main className="lg:pl-60 pt-14 lg:pt-0 min-h-screen">
         <div className="p-6 lg:p-8 max-w-6xl">
           {children}
         </div>
       </main>
-    </div>
-  );
+    </div>);
+
 }
