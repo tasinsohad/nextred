@@ -357,9 +357,7 @@ export default function SubdomainRedirects() {
             Cloudflare API Token
           </CardTitle>
           <CardDescription>
-            Enter your API token. Required permissions: <strong>Zone:DNS:Edit</strong>, <strong>Zone:Zone:Read</strong>, and <strong>Zone:Dynamic Redirect:Edit</strong> (under Zone &gt; Rules).
-            <br />
-            <span className="text-xs text-muted-foreground">Without "Dynamic Redirect" permission, DNS records will be created but redirect rules will fail.</span>
+            Enter your API token. Required permissions: <strong>Zone:DNS:Edit</strong>, <strong>Zone:Zone:Read</strong>, and <strong>Zone:Page Rules:Edit</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent>
