@@ -26,6 +26,7 @@ interface SubdomainEntry {
   destinationUrl: string;
   existingARecordId: string | null;
   existingAProxied: boolean;
+  existingPageRuleId: string;
   currentRedirectUrl: string;
   status: "idle" | "processing" | "success" | "error";
   statusMessage: string;
