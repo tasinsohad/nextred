@@ -196,6 +196,7 @@ export default function SubdomainRedirects() {
             destinationUrl: destinationUrl.trim(),
             existingARecordId: aRecord?.id ?? null,
             existingAProxied: aRecord?.proxied ?? false,
+            existingPageRuleId,
             currentRedirectUrl,
             status: "idle",
             statusMessage: "",
