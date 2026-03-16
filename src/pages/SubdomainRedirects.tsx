@@ -255,90 +255,71 @@ export default function SubdomainRedirects() {
       }
     }
 
-    // Phase 2: Deploy redirect rules per zone
-    // Group entries by zoneId
-    const byZone = new Map<string, SubdomainEntry[]>();
+    // Phase 2: Deploy redirect Page Rules per subdomain
     for (const entry of entries) {
-      if (!byZone.has(entry.zoneId)) byZone.set(entry.zoneId, []);
-      byZone.get(entry.zoneId)!.push(entry);
-    }
-
-    for (const [zoneId, zoneEntries] of byZone) {
       try {
-        // Fetch current ruleset
-        let existingRules: any[] = [];
-        try {
-          const rulesetRes = await cfProxy({ action: "get-redirect-ruleset", apiToken, zoneId });
-          if ((rulesetRes as any).success && (rulesetRes as any).ruleset?.rules) {
-            existingRules = (rulesetRes as any).ruleset.rules;
-          }
-        } catch { /* no existing ruleset */ }
-
-        // Get the fullnames we're deploying in this zone
-        const deployingNames = new Set(zoneEntries.map((e) => e.fullName));
-        
-        // Keep rules that DON'T match any of our deploying subdomains
-        const keptRules = existingRules.filter((r: any) => {
-          const expr = r.expression || "";
-          for (const fn of deployingNames) {
-            if (expr.includes(`"${fn}"`)) return false;
-          }
-          return true;
-        });
-
-        // Create new rules — only for entries that didn't fail DNS
-        const successEntries = zoneEntries.filter((e) => {
-          // Check current status - we need to read from the latest state
-          return true; // We'll check errors after
-        });
-
-        const newRules = successEntries.map((entry) => ({
-          description: `Redirect ${entry.fullName}`,
-          expression: `(http.host eq "${entry.fullName}")`,
-          action: "redirect",
-          action_parameters: {
-            from_value: {
-              status_code: 301,
-              target_url: { value: entry.destinationUrl },
-              preserve_query_string: true,
+        const pageRulePayload = {
+          targets: [
+            {
+              target: "url",
+              constraint: {
+                operator: "matches",
+                value: `${entry.fullName}/*`,
+              },
             },
-          },
-        }));
+          ],
+          actions: [
+            {
+              id: "forwarding_url",
+              value: {
+                url: entry.destinationUrl,
+                status_code: 301,
+              },
+            },
+          ],
+          status: "active",
+        };
 
-        const allRules = [...keptRules, ...newRules];
-
-        // Deploy the complete ruleset
-        const deployRes = await cfProxy({
-          action: "deploy-redirect-ruleset",
-          apiToken,
-          zoneId,
-          data: { rules: allRules },
-        });
-
-        if (!(deployRes as any).success) {
-          const errMsg = ((deployRes as any).errors?.[0] as any)?.message || "Ruleset deploy failed";
-          console.error("Deploy failed:", JSON.stringify(deployRes));
-          for (const entry of zoneEntries) {
-            updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Rule error: ${errMsg}` });
-          }
+        let ruleRes: any;
+        if (entry.existingPageRuleId) {
+          // Update existing page rule
+          ruleRes = await cfProxy({
+            action: "update-page-rule",
+            apiToken,
+            zoneId: entry.zoneId,
+            data: { id: entry.existingPageRuleId, payload: pageRulePayload },
+          });
         } else {
-          for (const entry of zoneEntries) {
-            updateEntry(entry.fullName, {
-              status: "success",
-              statusMessage: entry.existingARecordId && entry.existingAProxied
-                ? "✅ Redirect rule deployed (A record existed)"
-                : entry.existingARecordId
-                ? "✅ A record proxied + redirect rule deployed"
-                : "✅ A record created + redirect rule deployed",
-            });
-          }
+          // Create new page rule
+          ruleRes = await cfProxy({
+            action: "create-page-rule",
+            apiToken,
+            zoneId: entry.zoneId,
+            data: pageRulePayload,
+          });
         }
+
+        if (!ruleRes.success) {
+          const errMsg = ruleRes.errors?.[0]?.message || "Page rule failed";
+          console.error("Page rule failed:", JSON.stringify(ruleRes));
+          updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Rule error: ${errMsg}` });
+        } else {
+          updateEntry(entry.fullName, {
+            status: "success",
+            statusMessage: entry.existingARecordId && entry.existingAProxied
+              ? "✅ Redirect rule deployed (A record existed)"
+              : entry.existingARecordId
+              ? "✅ A record proxied + redirect rule deployed"
+              : "✅ A record created + redirect rule deployed",
+          });
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
       } catch (err: any) {
         console.error("Deploy error:", err);
-        for (const entry of zoneEntries) {
-          updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Deploy error: ${err.message}` });
-        }
+        updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Deploy error: ${err.message}` });
       }
+    }
     }
 
     setDeploying(false);
