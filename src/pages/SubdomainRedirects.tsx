@@ -320,7 +320,6 @@ export default function SubdomainRedirects() {
         updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Deploy error: ${err.message}` });
       }
     }
-    }
 
     setDeploying(false);
     setStep("done");
