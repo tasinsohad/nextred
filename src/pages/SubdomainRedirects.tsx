@@ -26,6 +26,7 @@ interface SubdomainEntry {
   destinationUrl: string;
   existingARecordId: string | null;
   existingAProxied: boolean;
+  existingPageRuleId: string;
   currentRedirectUrl: string;
   status: "idle" | "processing" | "success" | "error";
   statusMessage: string;
@@ -161,25 +162,28 @@ export default function SubdomainRedirects() {
         const dnsRes = await cfProxy({ action: "get-dns-records", apiToken, zoneId });
         const records: DnsRecord[] = ((dnsRes as any).records ?? []) as DnsRecord[];
 
-        // Also fetch existing redirect rules to show current redirects
-        let existingRules: any[] = [];
+        // Fetch existing page rules to show current redirects
+        let existingPageRules: any[] = [];
         try {
-          const rulesetRes = await cfProxy({ action: "get-redirect-ruleset", apiToken, zoneId });
-          if ((rulesetRes as any).success && (rulesetRes as any).ruleset?.rules) {
-            existingRules = (rulesetRes as any).ruleset.rules;
+          const pageRulesRes = await cfProxy({ action: "get-page-rules", apiToken, zoneId });
+          if ((pageRulesRes as any).success && (pageRulesRes as any).rules) {
+            existingPageRules = (pageRulesRes as any).rules;
           }
-        } catch { /* no ruleset yet */ }
+        } catch { /* no page rules yet */ }
 
         for (const sub of subs) {
           const fullName = `${sub}.${domain}`;
           const aRecord = records.find((r) => r.type === "A" && r.name === fullName);
           
-          // Find current redirect URL from existing rules
+          // Find current redirect URL from existing page rules
           let currentRedirectUrl = "";
-          for (const rule of existingRules) {
-            const expr = rule.expression || "";
-            if (expr.includes(`"${fullName}"`)) {
-              currentRedirectUrl = rule.action_parameters?.from_value?.target_url?.value || "";
+          let existingPageRuleId = "";
+          for (const rule of existingPageRules) {
+            const target = rule.targets?.[0]?.constraint?.value || "";
+            if (target.includes(fullName)) {
+              const fwdAction = rule.actions?.find((a: any) => a.id === "forwarding_url");
+              currentRedirectUrl = fwdAction?.value?.url || "";
+              existingPageRuleId = rule.id;
               break;
             }
           }
@@ -192,6 +196,7 @@ export default function SubdomainRedirects() {
             destinationUrl: destinationUrl.trim(),
             existingARecordId: aRecord?.id ?? null,
             existingAProxied: aRecord?.proxied ?? false,
+            existingPageRuleId,
             currentRedirectUrl,
             status: "idle",
             statusMessage: "",
@@ -250,89 +255,69 @@ export default function SubdomainRedirects() {
       }
     }
 
-    // Phase 2: Deploy redirect rules per zone
-    // Group entries by zoneId
-    const byZone = new Map<string, SubdomainEntry[]>();
+    // Phase 2: Deploy redirect Page Rules per subdomain
     for (const entry of entries) {
-      if (!byZone.has(entry.zoneId)) byZone.set(entry.zoneId, []);
-      byZone.get(entry.zoneId)!.push(entry);
-    }
-
-    for (const [zoneId, zoneEntries] of byZone) {
       try {
-        // Fetch current ruleset
-        let existingRules: any[] = [];
-        try {
-          const rulesetRes = await cfProxy({ action: "get-redirect-ruleset", apiToken, zoneId });
-          if ((rulesetRes as any).success && (rulesetRes as any).ruleset?.rules) {
-            existingRules = (rulesetRes as any).ruleset.rules;
-          }
-        } catch { /* no existing ruleset */ }
-
-        // Get the fullnames we're deploying in this zone
-        const deployingNames = new Set(zoneEntries.map((e) => e.fullName));
-        
-        // Keep rules that DON'T match any of our deploying subdomains
-        const keptRules = existingRules.filter((r: any) => {
-          const expr = r.expression || "";
-          for (const fn of deployingNames) {
-            if (expr.includes(`"${fn}"`)) return false;
-          }
-          return true;
-        });
-
-        // Create new rules — only for entries that didn't fail DNS
-        const successEntries = zoneEntries.filter((e) => {
-          // Check current status - we need to read from the latest state
-          return true; // We'll check errors after
-        });
-
-        const newRules = successEntries.map((entry) => ({
-          description: `Redirect ${entry.fullName}`,
-          expression: `(http.host eq "${entry.fullName}")`,
-          action: "redirect",
-          action_parameters: {
-            from_value: {
-              status_code: 301,
-              target_url: { value: entry.destinationUrl },
-              preserve_query_string: true,
+        const pageRulePayload = {
+          targets: [
+            {
+              target: "url",
+              constraint: {
+                operator: "matches",
+                value: `${entry.fullName}/*`,
+              },
             },
-          },
-        }));
+          ],
+          actions: [
+            {
+              id: "forwarding_url",
+              value: {
+                url: entry.destinationUrl,
+                status_code: 301,
+              },
+            },
+          ],
+          status: "active",
+        };
 
-        const allRules = [...keptRules, ...newRules];
-
-        // Deploy the complete ruleset
-        const deployRes = await cfProxy({
-          action: "deploy-redirect-ruleset",
-          apiToken,
-          zoneId,
-          data: { rules: allRules },
-        });
-
-        if (!(deployRes as any).success) {
-          const errMsg = ((deployRes as any).errors?.[0] as any)?.message || "Ruleset deploy failed";
-          console.error("Deploy failed:", JSON.stringify(deployRes));
-          for (const entry of zoneEntries) {
-            updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Rule error: ${errMsg}` });
-          }
+        let ruleRes: any;
+        if (entry.existingPageRuleId) {
+          // Update existing page rule
+          ruleRes = await cfProxy({
+            action: "update-page-rule",
+            apiToken,
+            zoneId: entry.zoneId,
+            data: { id: entry.existingPageRuleId, payload: pageRulePayload },
+          });
         } else {
-          for (const entry of zoneEntries) {
-            updateEntry(entry.fullName, {
-              status: "success",
-              statusMessage: entry.existingARecordId && entry.existingAProxied
-                ? "✅ Redirect rule deployed (A record existed)"
-                : entry.existingARecordId
-                ? "✅ A record proxied + redirect rule deployed"
-                : "✅ A record created + redirect rule deployed",
-            });
-          }
+          // Create new page rule
+          ruleRes = await cfProxy({
+            action: "create-page-rule",
+            apiToken,
+            zoneId: entry.zoneId,
+            data: pageRulePayload,
+          });
         }
+
+        if (!ruleRes.success) {
+          const errMsg = ruleRes.errors?.[0]?.message || "Page rule failed";
+          console.error("Page rule failed:", JSON.stringify(ruleRes));
+          updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Rule error: ${errMsg}` });
+        } else {
+          updateEntry(entry.fullName, {
+            status: "success",
+            statusMessage: entry.existingARecordId && entry.existingAProxied
+              ? "✅ Redirect rule deployed (A record existed)"
+              : entry.existingARecordId
+              ? "✅ A record proxied + redirect rule deployed"
+              : "✅ A record created + redirect rule deployed",
+          });
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
       } catch (err: any) {
         console.error("Deploy error:", err);
-        for (const entry of zoneEntries) {
-          updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Deploy error: ${err.message}` });
-        }
+        updateEntry(entry.fullName, { status: "error", statusMessage: `❌ Deploy error: ${err.message}` });
       }
     }
 
@@ -372,9 +357,7 @@ export default function SubdomainRedirects() {
             Cloudflare API Token
           </CardTitle>
           <CardDescription>
-            Enter your API token. Required permissions: <strong>Zone:DNS:Edit</strong>, <strong>Zone:Zone:Read</strong>, and <strong>Zone:Dynamic Redirect:Edit</strong> (under Zone &gt; Rules).
-            <br />
-            <span className="text-xs text-muted-foreground">Without "Dynamic Redirect" permission, DNS records will be created but redirect rules will fail.</span>
+            Enter your API token. Required permissions: <strong>Zone:DNS:Edit</strong>, <strong>Zone:Zone:Read</strong>, and <strong>Zone:Page Rules:Edit</strong>.
           </CardDescription>
         </CardHeader>
         <CardContent>
