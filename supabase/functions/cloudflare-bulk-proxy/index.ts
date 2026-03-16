@@ -201,14 +201,40 @@ serve(async (req) => {
         break;
       }
 
-      // Deploy full redirect ruleset via PUT entrypoint
+      // Deploy full redirect ruleset via PUT entrypoint (or create if none exists)
       case "deploy-redirect-ruleset": {
         // data.rules = array of rule objects to deploy
-        const r = await cfFetch(apiToken, `/zones/${zoneId}/rulesets/phases/http_request_dynamic_redirect/entrypoint`, {
+        // First try PUT to entrypoint
+        let r = await cfFetch(apiToken, `/zones/${zoneId}/rulesets/phases/http_request_dynamic_redirect/entrypoint`, {
           method: "PUT",
-          body: JSON.stringify(data),
+          body: JSON.stringify({ rules: data.rules }),
         });
+        // If entrypoint doesn't exist yet, create a new ruleset via POST
+        if (!r.success) {
+          const notFound = (r.errors ?? []).some((e: { code?: number; message?: string }) =>
+            e.code === 10009 || (e.message ?? "").toLowerCase().includes("not found")
+          );
+          if (notFound) {
+            r = await cfFetch(apiToken, `/zones/${zoneId}/rulesets`, {
+              method: "POST",
+              body: JSON.stringify({
+                name: "Subdomain Redirect Rules",
+                kind: "zone",
+                phase: "http_request_dynamic_redirect",
+                rules: data.rules,
+              }),
+            });
+          }
+        }
         result = { success: r.success, ruleset: r.result, errors: r.errors };
+        break;
+      }
+
+      // Search zones by name (to auto-detect zone ID from domain)
+      case "search-zones": {
+        const { domainName } = data as { domainName: string };
+        const r = await cfFetch(apiToken, `/zones?name=${encodeURIComponent(domainName)}&status=active`);
+        result = { success: r.success, zones: r.result, errors: r.errors };
         break;
       }
 
