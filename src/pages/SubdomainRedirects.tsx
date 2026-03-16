@@ -161,25 +161,28 @@ export default function SubdomainRedirects() {
         const dnsRes = await cfProxy({ action: "get-dns-records", apiToken, zoneId });
         const records: DnsRecord[] = ((dnsRes as any).records ?? []) as DnsRecord[];
 
-        // Also fetch existing redirect rules to show current redirects
-        let existingRules: any[] = [];
+        // Fetch existing page rules to show current redirects
+        let existingPageRules: any[] = [];
         try {
-          const rulesetRes = await cfProxy({ action: "get-redirect-ruleset", apiToken, zoneId });
-          if ((rulesetRes as any).success && (rulesetRes as any).ruleset?.rules) {
-            existingRules = (rulesetRes as any).ruleset.rules;
+          const pageRulesRes = await cfProxy({ action: "get-page-rules", apiToken, zoneId });
+          if ((pageRulesRes as any).success && (pageRulesRes as any).rules) {
+            existingPageRules = (pageRulesRes as any).rules;
           }
-        } catch { /* no ruleset yet */ }
+        } catch { /* no page rules yet */ }
 
         for (const sub of subs) {
           const fullName = `${sub}.${domain}`;
           const aRecord = records.find((r) => r.type === "A" && r.name === fullName);
           
-          // Find current redirect URL from existing rules
+          // Find current redirect URL from existing page rules
           let currentRedirectUrl = "";
-          for (const rule of existingRules) {
-            const expr = rule.expression || "";
-            if (expr.includes(`"${fullName}"`)) {
-              currentRedirectUrl = rule.action_parameters?.from_value?.target_url?.value || "";
+          let existingPageRuleId = "";
+          for (const rule of existingPageRules) {
+            const target = rule.targets?.[0]?.constraint?.value || "";
+            if (target.includes(fullName)) {
+              const fwdAction = rule.actions?.find((a: any) => a.id === "forwarding_url");
+              currentRedirectUrl = fwdAction?.value?.url || "";
+              existingPageRuleId = rule.id;
               break;
             }
           }

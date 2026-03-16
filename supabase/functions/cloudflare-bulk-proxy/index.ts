@@ -112,6 +112,16 @@ serve(async (req) => {
         break;
       }
 
+      // Update a page rule
+      case "update-page-rule": {
+        const r = await cfFetch(apiToken, `/zones/${zoneId}/pagerules/${data.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(data.payload),
+        });
+        result = { success: r.success, rule: r.result, errors: r.errors };
+        break;
+      }
+
       // Create a page rule (redirect)
       case "create-page-rule": {
         const r = await cfFetch(apiToken, `/zones/${zoneId}/pagerules`, {
