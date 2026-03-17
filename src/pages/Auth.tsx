@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Globe, Shield, Zap } from 'lucide-react';
+import { Zap, Shield, Layers } from 'lucide-react';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -33,48 +33,24 @@ export default function Auth() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    try {
-      authSchema.parse({ email, password });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        setError(err.errors[0].message);
-        return;
-      }
-    }
-
+    try { authSchema.parse({ email, password }); }
+    catch (err) { if (err instanceof z.ZodError) { setError(err.errors[0].message); return; } }
     setIsSubmitting(true);
     const { error } = await signIn(email, password);
     setIsSubmitting(false);
-    
-    if (error) {
-      setError(error.message);
-    }
+    if (error) setError(error.message);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
-    try {
-      authSchema.parse({ email, password, fullName });
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        setError(err.errors[0].message);
-        return;
-      }
-    }
-
+    try { authSchema.parse({ email, password, fullName }); }
+    catch (err) { if (err instanceof z.ZodError) { setError(err.errors[0].message); return; } }
     setIsSubmitting(true);
     const { error } = await signUp(email, password, fullName);
     setIsSubmitting(false);
-    
     if (error) {
-      if (error.message.includes('already registered')) {
-        setError('An account with this email already exists');
-      } else {
-        setError(error.message);
-      }
+      setError(error.message.includes('already registered') ? 'An account with this email already exists' : error.message);
     }
   };
 
@@ -93,13 +69,13 @@ export default function Auth() {
         <div className="max-w-md">
           <div className="flex items-center gap-3 mb-8">
             <div className="p-2 bg-primary">
-              <Globe className="h-8 w-8 text-primary-foreground" />
+              <Zap className="h-8 w-8 text-primary-foreground" />
             </div>
-            <h1 className="text-3xl font-bold text-foreground">DomainMask Pro</h1>
+            <h1 className="text-3xl font-bold text-foreground">Nextus AI</h1>
           </div>
           
           <p className="text-lg text-muted-foreground mb-12">
-            Professional domain masking with reverse proxy technology. Keep your URLs clean while serving content from any source.
+            Intelligent redirection management powered by Cloudflare. Manage thousands of domain and subdomain redirects effortlessly.
           </p>
 
           <div className="space-y-6">
@@ -108,8 +84,18 @@ export default function Auth() {
                 <Shield className="h-5 w-5 text-secondary-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Secure & SEO-Friendly</h3>
-                <p className="text-sm text-muted-foreground">True reverse proxy masking, not iframes. Full SSL support.</p>
+                <h3 className="font-semibold text-foreground">Bulk Redirect API</h3>
+                <p className="text-sm text-muted-foreground">Up to 10,000 redirects on Cloudflare free plan. No page rule limits.</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-4">
+              <div className="p-2 bg-secondary">
+                <Layers className="h-5 w-5 text-secondary-foreground" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">Multi-Domain Support</h3>
+                <p className="text-sm text-muted-foreground">Manage 100+ domains with subdomain redirects in one place.</p>
               </div>
             </div>
 
@@ -118,18 +104,8 @@ export default function Auth() {
                 <Zap className="h-5 w-5 text-secondary-foreground" />
               </div>
               <div>
-                <h3 className="font-semibold text-foreground">Built for Scale</h3>
-                <p className="text-sm text-muted-foreground">Manage 80+ domains per account with ease.</p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-4">
-              <div className="p-2 bg-secondary">
-                <Globe className="h-5 w-5 text-secondary-foreground" />
-              </div>
-              <div>
-                <h3 className="font-semibold text-foreground">Analytics Included</h3>
-                <p className="text-sm text-muted-foreground">Track UTM, Facebook Click ID, and Google Click ID.</p>
+                <h3 className="font-semibold text-foreground">History & Analytics</h3>
+                <p className="text-sm text-muted-foreground">Track all redirections with searchable history and team collaboration.</p>
               </div>
             </div>
           </div>
@@ -142,12 +118,12 @@ export default function Auth() {
           <CardHeader className="text-center">
             <div className="flex items-center justify-center gap-2 mb-4 lg:hidden">
               <div className="p-2 bg-primary">
-                <Globe className="h-6 w-6 text-primary-foreground" />
+                <Zap className="h-6 w-6 text-primary-foreground" />
               </div>
-              <span className="text-xl font-bold">DomainMask Pro</span>
+              <span className="text-xl font-bold">Nextus AI</span>
             </div>
             <CardTitle className="text-2xl">Welcome</CardTitle>
-            <CardDescription>Sign in to manage your domains</CardDescription>
+            <CardDescription>Sign in to manage your redirections</CardDescription>
           </CardHeader>
           <CardContent>
             <Tabs defaultValue="signin" className="w-full">
@@ -160,25 +136,11 @@ export default function Auth() {
                 <form onSubmit={handleSignIn} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signin-email">Email</Label>
-                    <Input
-                      id="signin-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                    <Input id="signin-email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signin-password">Password</Label>
-                    <Input
-                      id="signin-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <Input id="signin-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
@@ -191,35 +153,15 @@ export default function Auth() {
                 <form onSubmit={handleSignUp} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="signup-name">Full Name</Label>
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={fullName}
-                      onChange={(e) => setFullName(e.target.value)}
-                    />
+                    <Input id="signup-name" type="text" placeholder="John Doe" value={fullName} onChange={(e) => setFullName(e.target.value)} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-email">Email</Label>
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="you@example.com"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                    />
+                    <Input id="signup-email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="signup-password">Password</Label>
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                    />
+                    <Input id="signup-password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
                   </div>
                   {error && <p className="text-sm text-destructive">{error}</p>}
                   <Button type="submit" className="w-full" disabled={isSubmitting}>
