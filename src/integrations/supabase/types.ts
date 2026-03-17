@@ -165,6 +165,65 @@ export type Database = {
         }
         Relationships: []
       }
+      redirect_history: {
+        Row: {
+          cloudflare_account_id: string | null
+          cloudflare_list_id: string | null
+          created_at: string
+          destination_url: string
+          domain: string
+          id: string
+          redirect_type: string
+          source_url: string
+          status: string
+          status_code: number
+          subdomain: string | null
+          updated_at: string
+          user_id: string
+          zone_id: string | null
+        }
+        Insert: {
+          cloudflare_account_id?: string | null
+          cloudflare_list_id?: string | null
+          created_at?: string
+          destination_url: string
+          domain: string
+          id?: string
+          redirect_type?: string
+          source_url: string
+          status?: string
+          status_code?: number
+          subdomain?: string | null
+          updated_at?: string
+          user_id: string
+          zone_id?: string | null
+        }
+        Update: {
+          cloudflare_account_id?: string | null
+          cloudflare_list_id?: string | null
+          created_at?: string
+          destination_url?: string
+          domain?: string
+          id?: string
+          redirect_type?: string
+          source_url?: string
+          status?: string
+          status_code?: number
+          subdomain?: string | null
+          updated_at?: string
+          user_id?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "redirect_history_cloudflare_account_id_fkey"
+            columns: ["cloudflare_account_id"]
+            isOneToOne: false
+            referencedRelation: "cloudflare_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       team_invitations: {
         Row: {
           created_at: string
