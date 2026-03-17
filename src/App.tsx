@@ -10,6 +10,8 @@ import DashboardHome from "./pages/DashboardHome";
 import TeamPage from "./pages/TeamPage";
 import BulkManager from "./pages/BulkManager";
 import SubdomainRedirects from "./pages/SubdomainRedirects";
+import BulkRedirects from "./pages/BulkRedirects";
+import RedirectHistory from "./pages/RedirectHistory";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +29,8 @@ const App = () => (
             <Route path="/app" element={<AppLayout><DashboardHome /></AppLayout>} />
             <Route path="/app/bulk" element={<AppLayout><BulkManager /></AppLayout>} />
             <Route path="/app/subdomain-redirects" element={<AppLayout><SubdomainRedirects /></AppLayout>} />
+            <Route path="/app/bulk-redirects" element={<AppLayout><BulkRedirects /></AppLayout>} />
+            <Route path="/app/redirect-history" element={<AppLayout><RedirectHistory /></AppLayout>} />
             <Route path="/app/team" element={<AppLayout><TeamPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
