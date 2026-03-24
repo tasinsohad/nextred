@@ -124,7 +124,7 @@ serve(async (req) => {
 
       case "update-page-rule": {
         const r = await cfFetch(apiToken, `/zones/${zoneId}/pagerules/${data.id}`, {
-          method: "PATCH", body: JSON.stringify(data.payload),
+          method: "PUT", body: JSON.stringify(data.payload),
         });
         result = { success: r.success, rule: r.result, errors: r.errors };
         break;

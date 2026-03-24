@@ -129,7 +129,7 @@ export default function BulkRedirects() {
     if (!destinationUrl.trim()) { toast({ title: "Destination URL required", variant: "destructive" }); return; }
 
     const newEntries: RedirectEntry[] = lines.map((line) => ({
-      sourceUrl: line,
+      sourceUrl: `https://${line}/`,
       destinationUrl: destinationUrl.trim(),
       domain: extractRootDomain(line),
       subdomain: extractSubdomainPrefix(line),
