@@ -129,7 +129,7 @@ export default function BulkRedirects() {
     if (!destinationUrl.trim()) { toast({ title: "Destination URL required", variant: "destructive" }); return; }
 
     const newEntries: RedirectEntry[] = lines.map((line) => ({
-      sourceUrl: line,
+      sourceUrl: `https://${line}/`,
       destinationUrl: destinationUrl.trim(),
       domain: extractRootDomain(line),
       subdomain: extractSubdomainPrefix(line),
@@ -187,15 +187,19 @@ export default function BulkRedirects() {
         redirect: { source_url: string; target_url: string };
       }[];
 
-      // Step 3: Build new items list - merge with existing
-      const existingMap = new Map(existingItems.map((item) => [item.redirect.source_url, item]));
+      // Build existing map keyed by source_url
+      const existingMap = new Map<string, { id: string; redirect: { source_url: string; target_url: string } }>();
+      for (const item of existingItems) {
+        existingMap.set(item.redirect.source_url, item);
+      }
 
-      // Add/update entries
+      // Add/update entries from user input
       for (const entry of entries) {
-        existingMap.set(entry.sourceUrl, {
+        const sourceKey = entry.sourceUrl.endsWith("/") ? entry.sourceUrl : `${entry.sourceUrl}/`;
+        existingMap.set(sourceKey, {
           id: "",
           redirect: {
-            source_url: entry.sourceUrl,
+            source_url: sourceKey,
             target_url: entry.destinationUrl,
           },
         });
