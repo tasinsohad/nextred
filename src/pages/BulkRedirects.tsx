@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, XCircle, Globe, Zap, ArrowRight, Trash2, Save, Clock } from "lucide-react";
@@ -15,14 +14,19 @@ import { Loader2, CheckCircle2, XCircle, Globe, Zap, ArrowRight, Trash2, Save, C
 
 interface RedirectEntry {
   sourceUrl: string;
+  fullName: string;
   destinationUrl: string;
   domain: string;
   subdomain: string;
+  zoneId: string;
+  existingARecordId: string | null;
+  existingAProxied: boolean;
+  existingPageRuleId: string;
   status: "idle" | "processing" | "success" | "error";
   statusMessage: string;
 }
 
-type Step = "auth" | "input" | "review" | "deploying" | "done";
+type Step = "auth" | "input" | "resolving" | "review" | "deploying" | "done";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -44,18 +48,6 @@ function extractSubdomainPrefix(hostname: string): string {
   return parts.slice(0, -2).join(".");
 }
 
-async function waitForOperation(apiToken: string, accountId: string, operationId: string, maxWait = 30000) {
-  const start = Date.now();
-  while (Date.now() - start < maxWait) {
-    const res = await cfProxy({ action: "check-bulk-operation", apiToken, accountId, data: { operationId } });
-    const op = res.operation as { status?: string } | undefined;
-    if (op?.status === "completed") return true;
-    if (op?.status === "failed") return false;
-    await new Promise((r) => setTimeout(r, 1500));
-  }
-  return false;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function BulkRedirects() {
@@ -66,7 +58,6 @@ export default function BulkRedirects() {
   // Auth
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [manualToken, setManualToken] = useState("");
-  const [manualAccountId, setManualAccountId] = useState("");
   const [authMode, setAuthMode] = useState<"saved" | "manual">("saved");
   const [tokenValid, setTokenValid] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -74,7 +65,6 @@ export default function BulkRedirects() {
   // Input
   const [bulkInput, setBulkInput] = useState("");
   const [destinationUrl, setDestinationUrl] = useState("");
-  const [listName, setListName] = useState("nextus_redirects");
 
   // Processing
   const [step, setStep] = useState<Step>("auth");
@@ -82,13 +72,13 @@ export default function BulkRedirects() {
   const [deploying, setDeploying] = useState(false);
 
   // Derived credentials
-  const getCredentials = useCallback(() => {
+  const getApiToken = useCallback(() => {
     if (authMode === "saved" && selectedAccountId) {
       const acc = accounts.find((a) => a.id === selectedAccountId);
-      if (acc) return { apiToken: atob(acc.api_key_encrypted), accountId: acc.account_id || "" };
+      if (acc) return atob(acc.api_key_encrypted);
     }
-    return { apiToken: manualToken, accountId: manualAccountId };
-  }, [authMode, selectedAccountId, accounts, manualToken, manualAccountId]);
+    return manualToken;
+  }, [authMode, selectedAccountId, accounts, manualToken]);
 
   // Auto-select first account
   useEffect(() => {
@@ -100,9 +90,8 @@ export default function BulkRedirects() {
   // ─── Step 1: Validate ───────────────────────────────────────────────
 
   const handleValidate = useCallback(async () => {
-    const { apiToken, accountId } = getCredentials();
+    const apiToken = getApiToken();
     if (!apiToken) { toast({ title: "API credentials required", variant: "destructive" }); return; }
-    if (!accountId) { toast({ title: "Account ID required", variant: "destructive" }); return; }
     setValidating(true);
     try {
       const res = await cfProxy({ action: "verify-token", apiToken });
@@ -115,11 +104,11 @@ export default function BulkRedirects() {
     } finally {
       setValidating(false);
     }
-  }, [getCredentials, toast]);
+  }, [getApiToken, toast]);
 
-  // ─── Step 2: Parse input ────────────────────────────────────────────
+  // ─── Step 2: Parse input & resolve zones ────────────────────────────
 
-  const handleParseInput = useCallback(() => {
+  const handleParseAndResolve = useCallback(async () => {
     const lines = bulkInput
       .split("\n")
       .map((l) => l.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, ""))
@@ -128,168 +117,190 @@ export default function BulkRedirects() {
     if (lines.length === 0) { toast({ title: "No entries", variant: "destructive" }); return; }
     if (!destinationUrl.trim()) { toast({ title: "Destination URL required", variant: "destructive" }); return; }
 
-    const newEntries: RedirectEntry[] = lines.map((line) => ({
-      sourceUrl: `https://${line}/`,
-      destinationUrl: destinationUrl.trim(),
-      domain: extractRootDomain(line),
-      subdomain: extractSubdomainPrefix(line),
-      status: "idle",
-      statusMessage: "",
-    }));
+    const apiToken = getApiToken();
+    setValidating(true);
+    setStep("resolving");
 
-    setEntries(newEntries);
-    setStep("review");
-    toast({ title: `${newEntries.length} redirect(s) ready to review` });
-  }, [bulkInput, destinationUrl, toast]);
+    try {
+      // Group by root domain
+      const domainGroups = new Map<string, string[]>();
+      for (const line of lines) {
+        const root = extractRootDomain(line);
+        if (!domainGroups.has(root)) domainGroups.set(root, []);
+        domainGroups.get(root)!.push(line);
+      }
 
-  // ─── Step 3: Deploy via Bulk Redirect API ───────────────────────────
+      // Resolve zone IDs
+      const zoneMap = new Map<string, string>();
+      for (const domain of domainGroups.keys()) {
+        const res = await cfProxy({ action: "search-zones", apiToken, data: { domainName: domain } });
+        const zones = (res as any).zones as any[] | undefined;
+        if (!zones || zones.length === 0) {
+          toast({ title: `Zone not found: ${domain}`, description: "Make sure this domain is in your Cloudflare account.", variant: "destructive" });
+          continue;
+        }
+        zoneMap.set(domain, zones[0].id);
+      }
+
+      if (zoneMap.size === 0) {
+        toast({ title: "No zones found", variant: "destructive" });
+        setStep("input");
+        setValidating(false);
+        return;
+      }
+
+      // Fetch DNS records and page rules per zone
+      const newEntries: RedirectEntry[] = [];
+      for (const [domain, hostnames] of domainGroups) {
+        const zoneId = zoneMap.get(domain);
+        if (!zoneId) continue;
+
+        const dnsRes = await cfProxy({ action: "get-dns-records", apiToken, zoneId });
+        const records = ((dnsRes as any).records ?? []) as { id: string; type: string; name: string; proxied: boolean }[];
+
+        let existingPageRules: any[] = [];
+        try {
+          const prRes = await cfProxy({ action: "get-page-rules", apiToken, zoneId });
+          if ((prRes as any).success) existingPageRules = (prRes as any).rules ?? [];
+        } catch { /* ignore */ }
+
+        for (const hostname of hostnames) {
+          const sub = extractSubdomainPrefix(hostname);
+          const fullName = sub ? `${sub}.${domain}` : domain;
+          const aRecord = records.find((r) => r.type === "A" && r.name === fullName);
+
+          // Find existing page rule
+          let existingPageRuleId = "";
+          for (const rule of existingPageRules) {
+            const target = rule.targets?.[0]?.constraint?.value || "";
+            if (target.includes(fullName)) {
+              existingPageRuleId = rule.id;
+              break;
+            }
+          }
+
+          newEntries.push({
+            sourceUrl: `https://${fullName}/`,
+            fullName,
+            destinationUrl: destinationUrl.trim(),
+            domain,
+            subdomain: sub,
+            zoneId,
+            existingARecordId: aRecord?.id ?? null,
+            existingAProxied: aRecord?.proxied ?? false,
+            existingPageRuleId,
+            status: "idle",
+            statusMessage: "",
+          });
+        }
+      }
+
+      setEntries(newEntries);
+      setStep("review");
+      toast({ title: `${newEntries.length} redirect(s) ready to review` });
+    } catch (err: any) {
+      toast({ title: "Error resolving domains", description: err.message, variant: "destructive" });
+      setStep("input");
+    } finally {
+      setValidating(false);
+    }
+  }, [bulkInput, destinationUrl, getApiToken, toast]);
+
+  // ─── Step 3: Deploy via DNS + Page Rules ────────────────────────────
 
   const handleDeploy = useCallback(async () => {
     setDeploying(true);
     setStep("deploying");
-    const { apiToken, accountId } = getCredentials();
+    const apiToken = getApiToken();
 
-    const updateEntry = (src: string, updates: Partial<RedirectEntry>) => {
-      setEntries((prev) => prev.map((e) => (e.sourceUrl === src ? { ...e, ...updates } : e)));
+    const updateEntry = (fullName: string, updates: Partial<RedirectEntry>) => {
+      setEntries((prev) => prev.map((e) => (e.fullName === fullName ? { ...e, ...updates } : e)));
     };
 
     setEntries((prev) => prev.map((e) => ({ ...e, status: "processing" as const, statusMessage: "⏳ Processing..." })));
 
-    try {
-      // Step 1: Find or create the redirect list
-      updateEntry(entries[0].sourceUrl, { statusMessage: "⏳ Finding/creating redirect list..." });
-
-      const listsRes = await cfProxy({ action: "list-bulk-redirect-lists", apiToken, accountId });
-      const existingLists = ((listsRes as any).lists ?? []) as { id: string; name: string; kind: string }[];
-      const redirectList = existingLists.find((l) => l.kind === "redirect" && l.name === listName);
-
-      let listId: string;
-      if (redirectList) {
-        listId = redirectList.id;
-      } else {
-        const createRes = await cfProxy({
-          action: "create-bulk-redirect-list",
-          apiToken, accountId,
-          data: { name: listName, description: "Managed by Nextus AI" },
-        });
-        if (!(createRes as any).success) throw new Error("Failed to create redirect list");
-        listId = (createRes as any).list.id;
-      }
-
-      // Step 2: Get existing items
-      const existingItemsRes = await cfProxy({
-        action: "get-bulk-redirect-list-items",
-        apiToken, accountId,
-        data: { listId },
-      });
-      const existingItems = ((existingItemsRes as any).items ?? []) as {
-        id: string;
-        redirect: { source_url: string; target_url: string };
-      }[];
-
-      // Build existing map keyed by source_url
-      const existingMap = new Map<string, { id: string; redirect: { source_url: string; target_url: string } }>();
-      for (const item of existingItems) {
-        existingMap.set(item.redirect.source_url, item);
-      }
-
-      // Add/update entries from user input
-      for (const entry of entries) {
-        const sourceKey = entry.sourceUrl.endsWith("/") ? entry.sourceUrl : `${entry.sourceUrl}/`;
-        existingMap.set(sourceKey, {
-          id: "",
-          redirect: {
-            source_url: sourceKey,
-            target_url: entry.destinationUrl,
-          },
-        });
-      }
-
-      // Build the items array for replacement
-      const allItems = Array.from(existingMap.values()).map((item) => ({
-        redirect: {
-          source_url: item.redirect.source_url,
-          target_url: item.redirect.target_url,
-          status_code: 301,
-        },
-      }));
-
-      // Step 4: Replace all items
-      entries.forEach((e) => updateEntry(e.sourceUrl, { statusMessage: "⏳ Uploading redirects..." }));
-
-      const replaceRes = await cfProxy({
-        action: "replace-bulk-redirect-list-items",
-        apiToken, accountId,
-        data: { listId, items: allItems },
-      });
-
-      if (!(replaceRes as any).success) {
-        const errMsg = (replaceRes as any).errors?.[0]?.message || "Failed to update list items";
-        throw new Error(errMsg);
-      }
-
-      // Wait for operation to complete
-      const opId = (replaceRes as any).operation_id;
-      if (opId) {
-        entries.forEach((e) => updateEntry(e.sourceUrl, { statusMessage: "⏳ Waiting for Cloudflare..." }));
-        const completed = await waitForOperation(apiToken, accountId, opId);
-        if (!completed) {
-          entries.forEach((e) => updateEntry(e.sourceUrl, { statusMessage: "⚠️ Operation may still be processing" }));
+    for (const entry of entries) {
+      try {
+        // Phase 1: Ensure proxied A record
+        if (entry.subdomain) {
+          if (entry.existingARecordId && entry.existingAProxied) {
+            updateEntry(entry.fullName, { statusMessage: "⏳ A record OK, deploying rule..." });
+          } else if (entry.existingARecordId && !entry.existingAProxied) {
+            await cfProxy({
+              action: "update-dns-record", apiToken, zoneId: entry.zoneId,
+              data: { id: entry.existingARecordId, proxied: true },
+            });
+            updateEntry(entry.fullName, { statusMessage: "⏳ A record proxied, deploying rule..." });
+          } else {
+            await cfProxy({
+              action: "create-dns-record", apiToken, zoneId: entry.zoneId,
+              data: { type: "A", name: entry.fullName, content: "192.0.2.1", proxied: true, ttl: 1 },
+            });
+            updateEntry(entry.fullName, { statusMessage: "⏳ A record created, deploying rule..." });
+          }
         }
-      }
 
-      // Step 5: Ensure the bulk redirect rule exists
-      entries.forEach((e) => updateEntry(e.sourceUrl, { statusMessage: "⏳ Enabling redirect rule..." }));
+        // Phase 2: Create/update Page Rule
+        const pageRulePayload = {
+          targets: [{ target: "url", constraint: { operator: "matches", value: `${entry.fullName}/*` } }],
+          actions: [{ id: "forwarding_url", value: { url: entry.destinationUrl, status_code: 301 } }],
+          status: "active",
+        };
 
-      const ruleRes = await cfProxy({
-        action: "ensure-bulk-redirect-rule",
-        apiToken, accountId,
-        data: { listName, listId },
-      });
-
-      if (!(ruleRes as any).success) {
-        console.error("Rule creation failed:", ruleRes);
-      }
-
-      // Step 6: Mark all as success and save to history
-      for (const entry of entries) {
-        updateEntry(entry.sourceUrl, { status: "success", statusMessage: "✅ Redirect deployed" });
-
-        // Save to history
-        if (user) {
-          await supabase.from("redirect_history").upsert(
-            {
-              user_id: user.id,
-              source_url: entry.sourceUrl,
-              destination_url: entry.destinationUrl,
-              domain: entry.domain,
-              subdomain: entry.subdomain || null,
-              redirect_type: "bulk_redirect",
-              status_code: 301,
-              cloudflare_account_id: authMode === "saved" ? selectedAccountId : null,
-              cloudflare_list_id: listId,
-              status: "active",
-            },
-            { onConflict: "id" }
-          );
+        let ruleRes: any;
+        if (entry.existingPageRuleId) {
+          ruleRes = await cfProxy({
+            action: "update-page-rule", apiToken, zoneId: entry.zoneId,
+            data: { id: entry.existingPageRuleId, payload: pageRulePayload },
+          });
+        } else {
+          ruleRes = await cfProxy({
+            action: "create-page-rule", apiToken, zoneId: entry.zoneId,
+            data: pageRulePayload,
+          });
         }
+
+        if (!ruleRes.success) {
+          const errMsg = ruleRes.errors?.[0]?.message || "Page rule failed";
+          updateEntry(entry.fullName, { status: "error", statusMessage: `❌ ${errMsg}` });
+        } else {
+          updateEntry(entry.fullName, { status: "success", statusMessage: "✅ Redirect deployed" });
+
+          // Save to history
+          if (user) {
+            await supabase.from("redirect_history").upsert(
+              {
+                user_id: user.id,
+                source_url: entry.sourceUrl,
+                destination_url: entry.destinationUrl,
+                domain: entry.domain,
+                subdomain: entry.subdomain || null,
+                redirect_type: "page_rule",
+                status_code: 301,
+                cloudflare_account_id: authMode === "saved" ? selectedAccountId : null,
+                zone_id: entry.zoneId,
+                status: "active",
+              },
+              { onConflict: "id" }
+            );
+          }
+        }
+
+        await new Promise((r) => setTimeout(r, 300));
+      } catch (err: any) {
+        updateEntry(entry.fullName, { status: "error", statusMessage: `❌ ${err.message}` });
       }
-    } catch (err: any) {
-      console.error("Deploy error:", err);
-      entries.forEach((e) =>
-        updateEntry(e.sourceUrl, { status: "error", statusMessage: `❌ ${err.message}` })
-      );
     }
 
     setDeploying(false);
     setStep("done");
-  }, [entries, getCredentials, listName, user, authMode, selectedAccountId]);
+  }, [entries, getApiToken, user, authMode, selectedAccountId]);
 
   // ─── Helpers ────────────────────────────────────────────────────────
 
-  const removeEntry = (src: string) => setEntries((prev) => prev.filter((e) => e.sourceUrl !== src));
-  const updateDest = (src: string, url: string) =>
-    setEntries((prev) => prev.map((e) => (e.sourceUrl === src ? { ...e, destinationUrl: url } : e)));
+  const removeEntry = (fullName: string) => setEntries((prev) => prev.filter((e) => e.fullName !== fullName));
+  const updateDest = (fullName: string, url: string) =>
+    setEntries((prev) => prev.map((e) => (e.fullName === fullName ? { ...e, destinationUrl: url } : e)));
 
   const successCount = entries.filter((e) => e.status === "success").length;
   const errorCount = entries.filter((e) => e.status === "error").length;
@@ -301,7 +312,7 @@ export default function BulkRedirects() {
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Bulk Redirects</h2>
         <p className="text-muted-foreground">
-          Use Cloudflare Bulk Redirect API — supports up to 10,000 redirects on free plan
+          Bulk configure DNS records and Page Rule redirects for domains and subdomains
         </p>
       </div>
 
@@ -313,7 +324,7 @@ export default function BulkRedirects() {
             Cloudflare Credentials
           </CardTitle>
           <CardDescription>
-            Required permissions: <strong>Account Filter Lists Edit</strong> and <strong>Account Rulesets Write</strong>
+            Required permissions: <strong>Zone:DNS:Edit</strong>, <strong>Zone:Zone:Read</strong>, <strong>Zone:Page Rules:Edit</strong>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -350,21 +361,13 @@ export default function BulkRedirects() {
               </SelectContent>
             </Select>
           ) : (
-            <div className="space-y-3">
-              <Input
-                type="password"
-                placeholder="Cloudflare API Token"
-                value={manualToken}
-                onChange={(e) => setManualToken(e.target.value)}
-                disabled={tokenValid}
-              />
-              <Input
-                placeholder="Cloudflare Account ID"
-                value={manualAccountId}
-                onChange={(e) => setManualAccountId(e.target.value)}
-                disabled={tokenValid}
-              />
-            </div>
+            <Input
+              type="password"
+              placeholder="Cloudflare API Token"
+              value={manualToken}
+              onChange={(e) => setManualToken(e.target.value)}
+              disabled={tokenValid}
+            />
           )}
 
           <div className="flex gap-2 items-center">
@@ -387,7 +390,7 @@ export default function BulkRedirects() {
           <CardHeader>
             <CardTitle className="text-lg">Redirect Input</CardTitle>
             <CardDescription>
-              Enter domains or subdomains (one per line). Supports both full domains and subdomains.
+              Enter domains or subdomains (one per line). The system will auto-detect the zone for each domain.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -409,18 +412,9 @@ export default function BulkRedirects() {
                   disabled={step !== "input"}
                 />
               </div>
-              <div className="w-48">
-                <label className="text-sm font-medium mb-1 block">List Name</label>
-                <Input
-                  placeholder="nextus_redirects"
-                  value={listName}
-                  onChange={(e) => setListName(e.target.value.replace(/[^a-z0-9_]/gi, "_"))}
-                  disabled={step !== "input"}
-                  className="font-mono text-sm"
-                />
-              </div>
-              <Button onClick={handleParseInput} disabled={step !== "input"}>
-                Review
+              <Button onClick={handleParseAndResolve} disabled={step !== "input" || validating}>
+                {validating ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+                {validating ? "Resolving zones..." : "Review"}
               </Button>
             </div>
           </CardContent>
@@ -435,23 +429,23 @@ export default function BulkRedirects() {
               {step === "done" ? "Results" : "Review Redirects"}
             </CardTitle>
             <CardDescription>
-              {entries.length} redirect{entries.length !== 1 ? "s" : ""} — list: <code className="text-xs">{listName}</code>
+              {entries.length} redirect{entries.length !== 1 ? "s" : ""} across {new Set(entries.map(e => e.domain)).size} zone(s)
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
               {entries.map((entry) => (
-                <div key={entry.sourceUrl} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border border-border bg-card">
-                  <span className="font-mono text-sm font-medium min-w-[200px]">{entry.sourceUrl}</span>
+                <div key={entry.fullName} className="flex flex-col sm:flex-row sm:items-center gap-2 p-3 rounded-lg border border-border bg-card">
+                  <span className="font-mono text-sm font-medium min-w-[200px]">{entry.fullName}</span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground hidden sm:block" />
                   <Input
                     value={entry.destinationUrl}
-                    onChange={(e) => updateDest(entry.sourceUrl, e.target.value)}
+                    onChange={(e) => updateDest(entry.fullName, e.target.value)}
                     className="flex-1"
                     disabled={step !== "review"}
                   />
                   {step === "review" && (
-                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeEntry(entry.sourceUrl)}>
+                    <Button variant="ghost" size="icon" className="shrink-0" onClick={() => removeEntry(entry.fullName)}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   )}
@@ -497,7 +491,7 @@ export default function BulkRedirects() {
                 )}
                 <Button onClick={handleDeploy} disabled={deploying || step === "done"} size="lg">
                   {deploying ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
-                  {deploying ? "Deploying..." : "Deploy Bulk Redirects"}
+                  {deploying ? "Deploying..." : "Deploy All Redirects"}
                 </Button>
               </div>
             </div>
