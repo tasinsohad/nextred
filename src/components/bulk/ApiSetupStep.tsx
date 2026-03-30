@@ -74,7 +74,7 @@ export function ApiSetupStep() {
 
       if (error) throw new Error(error.message);
       if (!data?.success) {
-        const errMsg = data?.errors?.[0]?.message ?? "Token verification failed. Check your API token.";
+        const errMsg = data?.detail || data?.errors?.[0]?.message || "Token verification failed. Check your API token.";
         throw new Error(errMsg);
       }
 
