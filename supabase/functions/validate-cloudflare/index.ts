@@ -1,15 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-interface CloudflareValidateRequest {
-  email: string;
-  apiKey: string;
-}
 
 interface CloudflareAccount {
   id: string;
@@ -17,72 +11,117 @@ interface CloudflareAccount {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const { email, apiKey }: CloudflareValidateRequest = await req.json();
+    const { email, apiKey } = await req.json();
 
-    if (!email || !apiKey) {
-      console.error("Missing email or apiKey in request");
+    if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "Email and API key are required" }),
+        JSON.stringify({ error: "API key is required", details: "Please provide either a Global API Key or an API Token." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Validating Cloudflare credentials for email: ${email}`);
+    // Detect auth type: if email is provided, use Global API Key auth; otherwise use Bearer token
+    const isGlobalKey = email && email !== "api-token@cloudflare" && email.includes("@");
 
-    // Validate credentials by fetching accounts from Cloudflare API
-    const response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
-      method: "GET",
-      headers: {
-        "X-Auth-Email": email,
-        "X-Auth-Key": apiKey,
-        "Content-Type": "application/json",
-      },
-    });
+    let response: Response;
+    let authMethod: string;
+
+    if (isGlobalKey) {
+      authMethod = "Global API Key";
+      console.log(`Validating with Global API Key for email: ${email}`);
+      response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+        method: "GET",
+        headers: {
+          "X-Auth-Email": email,
+          "X-Auth-Key": apiKey,
+          "Content-Type": "application/json",
+        },
+      });
+    } else {
+      authMethod = "API Token";
+      console.log("Validating with API Token (Bearer auth)");
+      // First verify the token itself
+      const verifyRes = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const verifyData = await verifyRes.json();
+
+      if (!verifyData.success) {
+        const errMsg = verifyData.errors?.[0]?.message || "Token verification failed";
+        console.error("Token verify failed:", errMsg);
+        return new Response(
+          JSON.stringify({
+            error: "Invalid API Token",
+            details: `Cloudflare rejected the token: ${errMsg}. Make sure you're using a valid API Token with Zone:Read, Zone:DNS:Edit, and Zone:Page Rules:Edit permissions.`,
+          }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // Token is valid, now fetch accounts
+      response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+      });
+    }
 
     const data = await response.json();
 
     if (!data.success) {
-      console.error("Cloudflare API validation failed:", data.errors);
+      const errMsg = data.errors?.[0]?.message || "Authentication failed";
+      const code = data.errors?.[0]?.code;
+      console.error(`Cloudflare API validation failed (${authMethod}):`, data.errors);
+
+      let hint = "";
+      if (code === 6003 || code === 6111) {
+        hint = " Double-check that the email and Global API Key match your Cloudflare account.";
+      } else if (code === 9109) {
+        hint = " This token may not have permission to list accounts. Ensure it has Account:Read permission.";
+      }
+
       return new Response(
-        JSON.stringify({ 
-          error: "Invalid Cloudflare credentials", 
-          details: data.errors?.[0]?.message || "Authentication failed" 
+        JSON.stringify({
+          error: `Invalid Cloudflare credentials (${authMethod})`,
+          details: `${errMsg}.${hint}`,
         }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Extract account information
-    const accounts: CloudflareAccount[] = data.result.map((account: any) => ({
+    const accounts: CloudflareAccount[] = (data.result || []).map((account: any) => ({
       id: account.id,
       name: account.name,
     }));
 
-    console.log(`Successfully validated. Found ${accounts.length} account(s)`);
+    console.log(`Successfully validated (${authMethod}). Found ${accounts.length} account(s)`);
 
-    // Return the first account (most users have one)
     const primaryAccount = accounts[0];
 
     return new Response(
-      JSON.stringify({ 
-        valid: true, 
+      JSON.stringify({
+        valid: true,
         accountId: primaryAccount?.id || null,
         accountName: primaryAccount?.name || null,
-        accounts 
+        accounts,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error) {
     console.error("Error validating Cloudflare credentials:", error);
     return new Response(
-      JSON.stringify({ error: "Failed to validate credentials" }),
+      JSON.stringify({ error: "Failed to validate credentials", details: String(error) }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

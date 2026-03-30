@@ -44,7 +44,16 @@ serve(async (req) => {
       // ─── Token & Zone Actions ───────────────────────────────────────
       case "verify-token": {
         const r = await cfFetch(apiToken, "/user/tokens/verify");
-        result = { success: r.success, errors: r.errors };
+        if (!r.success) {
+          const errMsg = r.errors?.[0]?.message || "Token verification failed";
+          result = { 
+            success: false, 
+            errors: r.errors,
+            detail: `Cloudflare rejected the token: ${errMsg}. Ensure your API Token has Zone:Read, DNS:Edit, and Page Rules:Edit permissions.`
+          };
+        } else {
+          result = { success: true, status: r.result?.status };
+        }
         break;
       }
 

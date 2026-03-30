@@ -7,6 +7,7 @@ import { useCloudflareAccounts } from '@/hooks/useCloudflareAccounts';
 import { Plus, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function AddCloudflareAccountDialog() {
   const [open, setOpen] = useState(false);
@@ -14,16 +15,19 @@ export function AddCloudflareAccountDialog() {
   const [email, setEmail] = useState('');
   const [apiKey, setApiKey] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [authType, setAuthType] = useState<'token' | 'global'>('token');
+  const [errorDetail, setErrorDetail] = useState('');
   const { createAccount } = useCloudflareAccounts();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setErrorDetail('');
     
     try {
       await createAccount.mutateAsync({
         account_name: accountName,
-        cloudflare_email: email,
+        cloudflare_email: authType === 'global' ? email : 'api-token@cloudflare',
         api_key: apiKey,
       });
       
@@ -35,9 +39,11 @@ export function AddCloudflareAccountDialog() {
       setOpen(false);
       resetForm();
     } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to connect Cloudflare account';
+      setErrorDetail(msg);
       toast({
         title: 'Connection failed',
-        description: error instanceof Error ? error.message : 'Failed to connect Cloudflare account',
+        description: msg,
         variant: 'destructive',
       });
     }
@@ -48,6 +54,7 @@ export function AddCloudflareAccountDialog() {
     setEmail('');
     setApiKey('');
     setShowApiKey(false);
+    setErrorDetail('');
   };
 
   return (
@@ -61,12 +68,12 @@ export function AddCloudflareAccountDialog() {
           Add Cloudflare Account
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[475px]">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>Add Cloudflare Account</DialogTitle>
             <DialogDescription>
-              Connect your Cloudflare account for automated DNS management.
+              Connect your Cloudflare account using an API Token (recommended) or Global API Key.
             </DialogDescription>
           </DialogHeader>
           
@@ -80,60 +87,97 @@ export function AddCloudflareAccountDialog() {
                 placeholder="e.g., Main Account"
                 required
               />
-              <p className="text-xs text-muted-foreground">
-                A friendly name to identify this account
-              </p>
             </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">Cloudflare Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your@email.com"
-                required
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="apiKey">Global API Key *</Label>
-              <div className="relative">
-                <Input
-                  id="apiKey"
-                  type={showApiKey ? 'text' : 'password'}
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="Enter your API key"
-                  required
-                  className="pr-10"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowApiKey(!showApiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                >
-                  {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Find your Global API Key in{' '}
-                <a 
-                  href="https://dash.cloudflare.com/profile/api-tokens" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline inline-flex items-center gap-1"
-                >
-                  Cloudflare Dashboard → Profile → API Tokens
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </p>
-            </div>
+
+            <Tabs value={authType} onValueChange={(v) => setAuthType(v as 'token' | 'global')}>
+              <TabsList className="w-full">
+                <TabsTrigger value="token" className="flex-1">API Token (Recommended)</TabsTrigger>
+                <TabsTrigger value="global" className="flex-1">Global API Key</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="token" className="space-y-3 mt-3">
+                <div className="space-y-2">
+                  <Label htmlFor="apiToken">API Token *</Label>
+                  <div className="relative">
+                    <Input
+                      id="apiToken"
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Enter your API Token"
+                      required
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Create at{' '}
+                    <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                      Cloudflare → API Tokens <ExternalLink className="h-3 w-3" />
+                    </a>
+                    {' '}with <strong>Zone:Read</strong>, <strong>DNS:Edit</strong>, and <strong>Page Rules:Edit</strong>.
+                  </p>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="global" className="space-y-3 mt-3">
+                <div className="space-y-2">
+                  <Label htmlFor="email">Cloudflare Email *</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required={authType === 'global'}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="globalKey">Global API Key *</Label>
+                  <div className="relative">
+                    <Input
+                      id="globalKey"
+                      type={showApiKey ? 'text' : 'password'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Enter your Global API Key"
+                      required
+                      className="pr-10 font-mono text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    >
+                      {showApiKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Found in{' '}
+                    <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline inline-flex items-center gap-1">
+                      Cloudflare → Profile → API Tokens → Global API Key
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </p>
+                </div>
+              </TabsContent>
+            </Tabs>
+
+            {errorDetail && (
+              <Alert variant="destructive">
+                <AlertDescription className="text-sm">{errorDetail}</AlertDescription>
+              </Alert>
+            )}
 
             <Alert className="border-amber-500/50 bg-amber-500/10">
               <AlertDescription className="text-sm">
-                <strong>Note:</strong> Credentials are validated when saving. The Account ID will be automatically fetched from Cloudflare.
+                <strong>Note:</strong> Credentials are validated against Cloudflare before saving. The Account ID is fetched automatically.
               </AlertDescription>
             </Alert>
           </div>
