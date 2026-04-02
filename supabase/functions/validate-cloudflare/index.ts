@@ -67,17 +67,45 @@ serve(async (req) => {
         );
       }
 
-      // Token is valid, now fetch accounts
-      response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-      });
+      // Token is valid, try to fetch accounts (may fail if token lacks Account:Read)
+      let accounts: CloudflareAccount[] = [];
+      try {
+        response = await fetch("https://api.cloudflare.com/client/v4/accounts", {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+          },
+        });
+        const accountsData = await response.json();
+        if (accountsData.success) {
+          accounts = (accountsData.result || []).map((account: any) => ({
+            id: account.id,
+            name: account.name,
+          }));
+        } else {
+          console.log("Token valid but cannot list accounts (missing Account:Read permission). Continuing...");
+        }
+      } catch (e) {
+        console.log("Could not fetch accounts, but token is verified:", e);
+      }
+
+      const primaryAccount = accounts[0];
+      console.log(`Successfully validated (API Token). Found ${accounts.length} account(s)`);
+
+      return new Response(
+        JSON.stringify({
+          valid: true,
+          accountId: primaryAccount?.id || null,
+          accountName: primaryAccount?.name || null,
+          accounts,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    const data = await response.json();
+    // Global API Key path
+    const data = await response!.json();
 
     if (!data.success) {
       const errMsg = data.errors?.[0]?.message || "Authentication failed";
@@ -87,8 +115,6 @@ serve(async (req) => {
       let hint = "";
       if (code === 6003 || code === 6111) {
         hint = " Double-check that the email and Global API Key match your Cloudflare account.";
-      } else if (code === 9109) {
-        hint = " This token may not have permission to list accounts. Ensure it has Account:Read permission.";
       }
 
       return new Response(
