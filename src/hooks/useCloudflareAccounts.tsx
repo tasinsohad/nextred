@@ -2,6 +2,10 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 
+type CloudflareAuthType = 'token' | 'global';
+
+const TOKEN_SENTINEL_EMAIL = 'api-token@cloudflare';
+
 export interface CloudflareAccount {
   id: string;
   user_id: string;
@@ -17,6 +21,7 @@ export interface CreateCloudflareAccountInput {
   account_name: string;
   cloudflare_email: string;
   api_key: string;
+  auth_type?: CloudflareAuthType;
 }
 
 export interface UpdateCloudflareAccountInput {
@@ -24,6 +29,7 @@ export interface UpdateCloudflareAccountInput {
   account_name?: string;
   cloudflare_email?: string;
   api_key?: string;
+  auth_type?: CloudflareAuthType;
 }
 
 interface ValidationResponse {
@@ -33,6 +39,31 @@ interface ValidationResponse {
   error?: string;
   details?: string;
 }
+
+interface EdgeFunctionErrorLike {
+  message?: string;
+  context?: Response;
+}
+
+const normalizeApiKey = (value: string) => value.trim().replace(/^Bearer\s+/i, '').trim();
+
+const getFunctionErrorMessage = async (error: EdgeFunctionErrorLike) => {
+  if (error.context) {
+    try {
+      const payload = await error.context.clone().json();
+      return payload?.details || payload?.detail || payload?.error || payload?.errors?.[0]?.message || error.message;
+    } catch {
+      try {
+        const text = await error.context.clone().text();
+        if (text) return text;
+      } catch {
+        // Ignore response parsing failures and fall back to the default message.
+      }
+    }
+  }
+
+  return error.message || 'Failed to validate credentials';
+};
 
 export function useCloudflareAccounts() {
   const { user } = useAuth();
@@ -52,13 +83,13 @@ export function useCloudflareAccounts() {
     enabled: !!user,
   });
 
-  const validateCredentials = async (email: string, apiKey: string): Promise<ValidationResponse> => {
+  const validateCredentials = async (email: string, apiKey: string, authType?: CloudflareAuthType): Promise<ValidationResponse> => {
     const { data, error } = await supabase.functions.invoke('validate-cloudflare', {
-      body: { email, apiKey },
+      body: { email, apiKey: normalizeApiKey(apiKey), authType },
     });
 
     if (error) {
-      throw new Error(error.message || 'Failed to validate credentials');
+      throw new Error(await getFunctionErrorMessage(error as EdgeFunctionErrorLike));
     }
 
     return data;
@@ -66,22 +97,24 @@ export function useCloudflareAccounts() {
 
   const createAccount = useMutation({
     mutationFn: async (input: CreateCloudflareAccountInput) => {
+      const normalizedApiKey = normalizeApiKey(input.api_key);
+
       // First validate the credentials
-      const validation = await validateCredentials(input.cloudflare_email, input.api_key);
+      const validation = await validateCredentials(input.cloudflare_email, normalizedApiKey, input.auth_type);
       
       if (!validation.valid) {
         throw new Error(validation.details || validation.error || 'Invalid credentials');
       }
 
       // Store the account with encrypted API key (simple base64 for now - in production use proper encryption)
-      const encryptedKey = btoa(input.api_key);
+      const encryptedKey = btoa(normalizedApiKey);
 
       const { data, error } = await supabase
         .from('cloudflare_accounts')
         .insert({
           user_id: user!.id,
           account_name: input.account_name,
-          cloudflare_email: input.cloudflare_email,
+          cloudflare_email: input.auth_type === 'token' ? TOKEN_SENTINEL_EMAIL : input.cloudflare_email,
           api_key_encrypted: encryptedKey,
           account_id: validation.accountId,
         })
@@ -97,18 +130,28 @@ export function useCloudflareAccounts() {
   });
 
   const updateAccount = useMutation({
-    mutationFn: async ({ id, api_key, ...updates }: UpdateCloudflareAccountInput) => {
+    mutationFn: async ({ id, api_key, auth_type, ...updates }: UpdateCloudflareAccountInput) => {
       const updateData: Record<string, unknown> = { ...updates };
+      const existingAccount = accountsQuery.data?.find(a => a.id === id);
+      const effectiveAuthType = auth_type || (existingAccount?.cloudflare_email === TOKEN_SENTINEL_EMAIL ? 'token' : 'global');
+
+      if (effectiveAuthType === 'token') {
+        updateData.cloudflare_email = TOKEN_SENTINEL_EMAIL;
+      }
       
       // If API key is being updated, validate and encrypt it
       if (api_key) {
-        const email = updates.cloudflare_email || accountsQuery.data?.find(a => a.id === id)?.cloudflare_email;
+        const normalizedApiKey = normalizeApiKey(api_key);
+        const email = effectiveAuthType === 'token'
+          ? TOKEN_SENTINEL_EMAIL
+          : updates.cloudflare_email || existingAccount?.cloudflare_email;
+
         if (email) {
-          const validation = await validateCredentials(email, api_key);
+          const validation = await validateCredentials(email, normalizedApiKey, effectiveAuthType);
           if (!validation.valid) {
             throw new Error(validation.details || validation.error || 'Invalid credentials');
           }
-          updateData.api_key_encrypted = btoa(api_key);
+          updateData.api_key_encrypted = btoa(normalizedApiKey);
           updateData.account_id = validation.accountId;
         }
       }
