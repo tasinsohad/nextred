@@ -16,6 +16,7 @@ interface CloudflareAccountCardProps {
 }
 
 export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
+  const isTokenAccount = account.cloudflare_email === 'api-token@cloudflare';
   const [editOpen, setEditOpen] = useState(false);
   const [accountName, setAccountName] = useState(account.account_name);
   const [email, setEmail] = useState(account.cloudflare_email);
@@ -35,8 +36,9 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
       await updateAccount.mutateAsync({
         id: account.id,
         account_name: accountName,
-        cloudflare_email: email,
+        ...(isTokenAccount ? {} : { cloudflare_email: email }),
         ...(apiKey ? { api_key: apiKey } : {}),
+        auth_type: isTokenAccount ? 'token' : 'global',
       });
       
       toast({
@@ -96,7 +98,7 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
                   </Badge>
                 </div>
                 <div className="text-sm text-muted-foreground space-y-0.5">
-                  <p>Email: {account.cloudflare_email}</p>
+                  <p>{isTokenAccount ? 'Auth: API Token' : `Email: ${account.cloudflare_email}`}</p>
                   <p>API Key: {maskedApiKey}</p>
                   {account.account_id && (
                     <p>Account ID: <code className="text-xs bg-secondary px-1 py-0.5 rounded">{account.account_id.slice(0, 12)}...</code></p>
@@ -161,27 +163,29 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="edit-email">Cloudflare Email *</Label>
-                <Input
-                  id="edit-email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  required
-                />
-              </div>
+              {!isTokenAccount && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-email">Cloudflare Email *</Label>
+                  <Input
+                    id="edit-email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    required
+                  />
+                </div>
+              )}
               
               <div className="space-y-2">
-                <Label htmlFor="edit-apiKey">Global API Key</Label>
+                <Label htmlFor="edit-apiKey">{isTokenAccount ? 'API Token' : 'Global API Key'}</Label>
                 <div className="relative">
                   <Input
                     id="edit-apiKey"
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Leave empty to keep current key"
+                    placeholder={isTokenAccount ? 'Leave empty to keep current token' : 'Leave empty to keep current key'}
                     className="pr-10"
                   />
                   <button
@@ -193,7 +197,8 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
                   </button>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Find your Global API Key in{' '}
+                  {isTokenAccount ? 'Paste only the raw token value — if you copied the header value, remove the leading "Bearer ".' : 'Find your Global API Key in '}
+                  {!isTokenAccount && (
                   <a 
                     href="https://dash.cloudflare.com/profile/api-tokens" 
                     target="_blank" 
@@ -203,6 +208,7 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
                     Cloudflare Dashboard → Profile → API Tokens
                     <ExternalLink className="h-3 w-3" />
                   </a>
+                  )}
                 </p>
               </div>
 

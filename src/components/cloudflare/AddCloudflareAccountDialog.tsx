@@ -29,6 +29,7 @@ export function AddCloudflareAccountDialog() {
         account_name: accountName,
         cloudflare_email: authType === 'global' ? email : 'api-token@cloudflare',
         api_key: apiKey,
+        auth_type: authType,
       });
       
       toast({

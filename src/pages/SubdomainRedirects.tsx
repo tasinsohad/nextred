@@ -85,7 +85,9 @@ export default function SubdomainRedirects() {
     setValidating(true);
     try {
       const res = await cfProxy({ action: "verify-token", apiToken });
-      if (!(res as any).success) throw new Error("Invalid API Token");
+      if (!(res as any).success) {
+        throw new Error((res as any).detail || (res as any).errors?.[0]?.message || "Invalid API Token");
+      }
       setTokenValid(true);
       setStep("input");
       toast({ title: "Token verified", description: "You can now enter subdomains." });

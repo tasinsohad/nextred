@@ -7,9 +7,14 @@ const corsHeaders = {
 
 const CF_BASE = "https://api.cloudflare.com/client/v4";
 
+function normalizeApiToken(apiToken: string) {
+  return apiToken.trim().replace(/^Bearer\s+/i, "").trim();
+}
+
 function cfHeaders(apiToken: string) {
+  const normalizedToken = normalizeApiToken(apiToken);
   return {
-    "Authorization": `Bearer ${apiToken}`,
+    "Authorization": `Bearer ${normalizedToken}`,
     "Content-Type": "application/json",
   };
 }
@@ -31,7 +36,7 @@ serve(async (req) => {
     const body = await req.json();
     const { action, apiToken, accountId, zoneId, data } = body;
 
-    if (!action || !apiToken) {
+    if (!action || !normalizeApiToken(apiToken)) {
       return new Response(
         JSON.stringify({ success: false, error: "action and apiToken are required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -46,13 +51,22 @@ serve(async (req) => {
         const r = await cfFetch(apiToken, "/user/tokens/verify");
         if (!r.success) {
           const errMsg = r.errors?.[0]?.message || "Token verification failed";
+          const docUrl = r.errors?.[0]?.documentation_url ? ` See ${r.errors[0].documentation_url}` : "";
           result = { 
             success: false, 
             errors: r.errors,
-            detail: `Cloudflare rejected the token: ${errMsg}. Ensure your API Token has Zone:Read, DNS:Edit, and Page Rules:Edit permissions.`
+            detail: `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Ensure your API Token has Zone:Read, DNS:Edit, and Page Rules:Edit permissions.`
           };
         } else {
-          result = { success: true, status: r.result?.status };
+          const tokenStatus = r.result?.status;
+          if (tokenStatus && tokenStatus !== "active") {
+            result = {
+              success: false,
+              detail: `Cloudflare reports this token is ${tokenStatus}. Enable it or create a new active token.`,
+            };
+          } else {
+            result = { success: true, status: tokenStatus };
+          }
         }
         break;
       }
