@@ -11,6 +11,7 @@ import TeamPage from "./pages/TeamPage";
 import BulkManager from "./pages/BulkManager";
 import SubdomainRedirects from "./pages/SubdomainRedirects";
 import BulkRedirects from "./pages/BulkRedirects";
+import RedirectRules from "./pages/RedirectRules";
 import RedirectHistory from "./pages/RedirectHistory";
 import NotFound from "./pages/NotFound";
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/app/bulk" element={<AppLayout><BulkManager /></AppLayout>} />
             <Route path="/app/subdomain-redirects" element={<AppLayout><SubdomainRedirects /></AppLayout>} />
             <Route path="/app/bulk-redirects" element={<AppLayout><BulkRedirects /></AppLayout>} />
+            <Route path="/app/redirect-rules" element={<AppLayout><RedirectRules /></AppLayout>} />
             <Route path="/app/redirect-history" element={<AppLayout><RedirectHistory /></AppLayout>} />
             <Route path="/app/team" element={<AppLayout><TeamPage /></AppLayout>} />
             <Route path="*" element={<NotFound />} />
