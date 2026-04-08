@@ -2,7 +2,7 @@ import { ReactNode, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ArrowRightLeft, GitBranchPlus, Layers, History, Users, LogOut, Menu, X, Zap } from 'lucide-react';
+import { LayoutDashboard, ArrowRightLeft, GitBranchPlus, Layers, History, Users, LogOut, Menu, X, Zap, SplitSquareHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -15,6 +15,7 @@ const navItems = [
   { href: '/app/bulk', label: 'Bulk Manager', icon: ArrowRightLeft },
   { href: '/app/subdomain-redirects', label: 'Page Rule Redirects', icon: GitBranchPlus },
   { href: '/app/bulk-redirects', label: 'Bulk Redirects', icon: Layers },
+  { href: '/app/redirect-rules', label: 'Redirect Rules', icon: SplitSquareHorizontal },
   { href: '/app/redirect-history', label: 'History', icon: History },
   { href: '/app/team', label: 'Team', icon: Users },
 ];
