@@ -58,6 +58,7 @@ export default function BulkRedirects() {
   // Auth
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [manualToken, setManualToken] = useState("");
+  const [manualAccountId, setManualAccountId] = useState("");
   const [authMode, setAuthMode] = useState<"saved" | "manual">("saved");
   const [tokenValid, setTokenValid] = useState(false);
   const [validating, setValidating] = useState(false);
@@ -89,12 +90,26 @@ export default function BulkRedirects() {
 
   // ─── Step 1: Validate ───────────────────────────────────────────────
 
+  const getResolvedAccountId = useCallback((): string => {
+    if (manualAccountId.trim()) return manualAccountId.trim();
+    if (authMode === "saved" && selectedAccountId) {
+      const acc = accounts.find((a) => a.id === selectedAccountId);
+      return acc?.account_id || "";
+    }
+    return "";
+  }, [manualAccountId, authMode, selectedAccountId, accounts]);
+
   const handleValidate = useCallback(async () => {
     const apiToken = getApiToken();
     if (!apiToken) { toast({ title: "API credentials required", variant: "destructive" }); return; }
+    const acctId = getResolvedAccountId();
+    if (apiToken.startsWith("cfat_") && !acctId) {
+      toast({ title: "Account ID required", description: "Account API Tokens (cfat_) require an Account ID.", variant: "destructive" });
+      return;
+    }
     setValidating(true);
     try {
-      const res = await cfProxy({ action: "verify-token", apiToken });
+      const res = await cfProxy({ action: "verify-token", apiToken, accountId: acctId || undefined });
       if (!(res as any).success) {
         throw new Error((res as any).detail || (res as any).errors?.[0]?.message || "Invalid API Token");
       }
@@ -106,7 +121,7 @@ export default function BulkRedirects() {
     } finally {
       setValidating(false);
     }
-  }, [getApiToken, toast]);
+  }, [getApiToken, getResolvedAccountId, toast]);
 
   // ─── Step 2: Parse input & resolve zones ────────────────────────────
 
@@ -363,13 +378,24 @@ export default function BulkRedirects() {
               </SelectContent>
             </Select>
           ) : (
-            <Input
-              type="password"
-              placeholder="Cloudflare API Token"
-              value={manualToken}
-              onChange={(e) => setManualToken(e.target.value)}
-              disabled={tokenValid}
-            />
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder="Cloudflare API Token"
+                value={manualToken}
+                onChange={(e) => setManualToken(e.target.value)}
+                disabled={tokenValid}
+              />
+              {manualToken.startsWith("cfat_") && (
+                <Input
+                  placeholder="Account ID (required for cfat_ tokens)"
+                  value={manualAccountId}
+                  onChange={(e) => setManualAccountId(e.target.value)}
+                  disabled={tokenValid}
+                  className="text-xs font-mono"
+                />
+              )}
+            </div>
           )}
 
           <div className="flex gap-2 items-center">

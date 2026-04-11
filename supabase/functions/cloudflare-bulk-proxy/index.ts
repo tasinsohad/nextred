@@ -49,8 +49,16 @@ serve(async (req) => {
       // ─── Token & Zone Actions ───────────────────────────────────────
       case "verify-token": {
         const normalizedToken = normalizeApiToken(apiToken);
-        // Account API Tokens (starting with cfat_) must be verified via the account-specific endpoint
         const isAccountToken = normalizedToken.startsWith("cfat_");
+        
+        if (isAccountToken && !accountId) {
+          result = { 
+            success: false, 
+            detail: "Account API Tokens (cfat_) require an Account ID. Please provide your Cloudflare Account ID."
+          };
+          break;
+        }
+        
         const verifyPath = (isAccountToken && accountId) 
           ? `/accounts/${accountId}/tokens/verify` 
           : "/user/tokens/verify";
@@ -62,7 +70,7 @@ serve(async (req) => {
           result = { 
             success: false, 
             errors: r.errors,
-            detail: `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Ensure your API Token has necessary permissions (Zone:Read, DNS:Edit, Page Rules:Edit).`
+            detail: `Cloudflare rejected the token: ${errMsg}.${docUrl} Ensure your API Token has necessary permissions (Zone:Read, DNS:Edit, Page Rules:Edit or Dynamic Redirect:Edit).`
           };
         } else {
           const tokenStatus = r.result?.status;

@@ -63,6 +63,7 @@ export default function SubdomainRedirects() {
 
   // Auth
   const [apiToken, setApiToken] = useState("");
+  const [manualAccountId, setManualAccountId] = useState("");
   const [tokenValid, setTokenValid] = useState(false);
   const [validating, setValidating] = useState(false);
 
@@ -82,9 +83,13 @@ export default function SubdomainRedirects() {
       toast({ title: "API Token required", variant: "destructive" });
       return;
     }
+    if (apiToken.trim().startsWith("cfat_") && !manualAccountId.trim()) {
+      toast({ title: "Account ID required", description: "Account API Tokens (cfat_) require an Account ID.", variant: "destructive" });
+      return;
+    }
     setValidating(true);
     try {
-      const res = await cfProxy({ action: "verify-token", apiToken });
+      const res = await cfProxy({ action: "verify-token", apiToken, accountId: manualAccountId.trim() || undefined });
       if (!(res as any).success) {
         throw new Error((res as any).detail || (res as any).errors?.[0]?.message || "Invalid API Token");
       }
@@ -96,7 +101,7 @@ export default function SubdomainRedirects() {
     } finally {
       setValidating(false);
     }
-  }, [apiToken, toast]);
+  }, [apiToken, manualAccountId, toast]);
 
   // ─── Step 2: Parse bulk input & resolve zones ───────────────────────────
 
@@ -364,14 +369,24 @@ export default function SubdomainRedirects() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-3">
-            <Input
-              type="password"
-              placeholder="Your Cloudflare API Token"
-              value={apiToken}
-              onChange={(e) => setApiToken(e.target.value)}
-              disabled={tokenValid}
-              className="flex-1"
-            />
+            <div className="flex-1 space-y-2">
+              <Input
+                type="password"
+                placeholder="Your Cloudflare API Token"
+                value={apiToken}
+                onChange={(e) => setApiToken(e.target.value)}
+                disabled={tokenValid}
+              />
+              {apiToken.startsWith("cfat_") && (
+                <Input
+                  placeholder="Account ID (required for cfat_ tokens)"
+                  value={manualAccountId}
+                  onChange={(e) => setManualAccountId(e.target.value)}
+                  disabled={tokenValid}
+                  className="text-xs font-mono"
+                />
+              )}
+            </div>
             <Button onClick={handleValidateToken} disabled={validating || tokenValid}>
               {validating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               {tokenValid ? "Verified" : "Verify"}

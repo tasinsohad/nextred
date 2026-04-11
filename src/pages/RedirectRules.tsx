@@ -38,6 +38,7 @@ export default function RedirectRules() {
   // Credentials
   const [selectedAccountId, setSelectedAccountId] = useState("");
   const [manualToken, setManualToken] = useState("");
+  const [manualAccountId, setManualAccountId] = useState("");
   const [tokenValid, setTokenValid] = useState(false);
   const [validating, setValidating] = useState(false);
 
@@ -64,19 +65,29 @@ export default function RedirectRules() {
     return "";
   }, [manualToken, selectedAccountId, accounts]);
 
+  const getAccountId = useCallback((): string => {
+    if (manualAccountId.trim()) return manualAccountId.trim();
+    const account = accounts.find((a) => a.id === selectedAccountId);
+    return account?.account_id || "";
+  }, [manualAccountId, selectedAccountId, accounts]);
+
   const handleValidateToken = useCallback(async () => {
     const token = getApiToken();
     if (!token) { toast({ title: "No API token", variant: "destructive" }); return; }
+    if (token.startsWith("cfat_") && !getAccountId()) {
+      toast({ title: "Account ID required", description: "Account API Tokens (cfat_) require an Account ID.", variant: "destructive" });
+      return;
+    }
     setValidating(true);
     try {
-      const res = await cfProxy({ action: "verify-token", apiToken: token });
+      const res = await cfProxy({ action: "verify-token", apiToken: token, accountId: getAccountId() || undefined });
       if (!(res as any).success) throw new Error((res as any).detail || "Invalid token");
       setTokenValid(true);
       toast({ title: "Token verified" });
     } catch (err: any) {
       toast({ title: "Token error", description: err.message, variant: "destructive" });
     } finally { setValidating(false); }
-  }, [getApiToken, toast]);
+  }, [getApiToken, getAccountId, toast]);
 
   // ─── Parse hostnames ───────────────────────────────────────────────────
 
