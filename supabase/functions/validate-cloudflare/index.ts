@@ -62,6 +62,18 @@ serve(async (req) => {
       
       // Account API Tokens (starting with cfat_) must be verified via the account-specific endpoint
       const isAccountToken = normalizedApiKey.startsWith("cfat_");
+      
+      if (isAccountToken && !accountId) {
+        return new Response(
+          JSON.stringify({
+            valid: false,
+            error: "Account ID required",
+            details: "Account API Tokens (starting with 'cfat_') require an Account ID for verification. Please provide your Cloudflare Account ID.",
+          }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      
       const verifyPath = (isAccountToken && accountId) 
         ? `accounts/${accountId}/tokens/verify` 
         : "user/tokens/verify";
