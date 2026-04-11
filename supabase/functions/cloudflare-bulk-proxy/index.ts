@@ -48,14 +48,21 @@ serve(async (req) => {
     switch (action) {
       // ─── Token & Zone Actions ───────────────────────────────────────
       case "verify-token": {
-        const r = await cfFetch(apiToken, "/user/tokens/verify");
+        const normalizedToken = normalizeApiToken(apiToken);
+        // Account API Tokens (starting with cfat_) must be verified via the account-specific endpoint
+        const isAccountToken = normalizedToken.startsWith("cfat_");
+        const verifyPath = (isAccountToken && accountId) 
+          ? `/accounts/${accountId}/tokens/verify` 
+          : "/user/tokens/verify";
+        
+        const r = await cfFetch(apiToken, verifyPath);
         if (!r.success) {
           const errMsg = r.errors?.[0]?.message || "Token verification failed";
           const docUrl = r.errors?.[0]?.documentation_url ? ` See ${r.errors[0].documentation_url}` : "";
           result = { 
             success: false, 
             errors: r.errors,
-            detail: `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Ensure your API Token has Zone:Read, DNS:Edit, and Page Rules:Edit permissions.`
+            detail: `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Ensure your API Token has necessary permissions (Zone:Read, DNS:Edit, Page Rules:Edit).`
           };
         } else {
           const tokenStatus = r.result?.status;

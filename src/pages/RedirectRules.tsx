@@ -287,18 +287,31 @@ export default function RedirectRules() {
           )}
           <div>
             <Label>Or enter API Token</Label>
-            <div className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Cloudflare API Token"
-                value={manualToken}
-                onChange={(e) => { setManualToken(e.target.value); setSelectedAccountId(""); setTokenValid(false); }}
-                className="flex-1"
-              />
-              <Button onClick={handleValidateToken} disabled={validating || tokenValid} size="sm">
-                {validating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                {tokenValid ? "Verified ✓" : "Verify"}
-              </Button>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  type="password"
+                  placeholder="Cloudflare API Token"
+                  value={manualToken}
+                  onChange={(e) => { setManualToken(e.target.value); setSelectedAccountId(""); setTokenValid(false); }}
+                  className="flex-1"
+                />
+                <Button onClick={handleValidateToken} disabled={validating || tokenValid} size="sm">
+                  {validating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {tokenValid ? "Verified ✓" : "Verify"}
+                </Button>
+              </div>
+              {manualToken.startsWith("cfat_") && (
+                <div className="space-y-1">
+                  <Label className="text-xs">Account ID (Required for Account Tokens)</Label>
+                  <Input
+                    placeholder="32-character Account ID"
+                    value={manualAccountId}
+                    onChange={(e) => setManualAccountId(e.target.value)}
+                    className="text-xs h-8"
+                  />
+                </div>
+              )}
             </div>
           </div>
           {(selectedAccountId || tokenValid) && (

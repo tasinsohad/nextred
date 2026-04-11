@@ -14,6 +14,7 @@ export function AddCloudflareAccountDialog() {
   const [accountName, setAccountName] = useState('');
   const [email, setEmail] = useState('');
   const [apiKey, setApiKey] = useState('');
+  const [cfAccountId, setCfAccountId] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
   const [authType, setAuthType] = useState<'token' | 'global'>('token');
   const [errorDetail, setErrorDetail] = useState('');
@@ -30,6 +31,7 @@ export function AddCloudflareAccountDialog() {
         cloudflare_email: authType === 'global' ? email : 'api-token@cloudflare',
         api_key: apiKey,
         auth_type: authType,
+        accountId: cfAccountId,
       });
       
       toast({
@@ -54,6 +56,7 @@ export function AddCloudflareAccountDialog() {
     setAccountName('');
     setEmail('');
     setApiKey('');
+    setCfAccountId('');
     setShowApiKey(false);
     setErrorDetail('');
   };
@@ -125,6 +128,22 @@ export function AddCloudflareAccountDialog() {
                     {' '}with <strong>Zone:Read</strong>, <strong>DNS:Edit</strong>, and <strong>Page Rules:Edit</strong>.
                   </p>
                 </div>
+                {apiKey.startsWith('cfat_') && (
+                  <div className="space-y-2">
+                    <Label htmlFor="cfAccountId">Account ID *</Label>
+                    <Input
+                      id="cfAccountId"
+                      value={cfAccountId}
+                      onChange={(e) => setCfAccountId(e.target.value)}
+                      placeholder="32-character Account ID"
+                      required={apiKey.startsWith('cfat_')}
+                      className="font-mono text-sm"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Account API Tokens require an Account ID. Find it in your Cloudflare dashboard.
+                    </p>
+                  </div>
+                )}
               </TabsContent>
 
               <TabsContent value="global" className="space-y-3 mt-3">

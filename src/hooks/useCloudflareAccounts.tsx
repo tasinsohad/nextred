@@ -22,6 +22,7 @@ export interface CreateCloudflareAccountInput {
   cloudflare_email: string;
   api_key: string;
   auth_type?: CloudflareAuthType;
+  accountId?: string;
 }
 
 export interface UpdateCloudflareAccountInput {
@@ -83,9 +84,9 @@ export function useCloudflareAccounts() {
     enabled: !!user,
   });
 
-  const validateCredentials = async (email: string, apiKey: string, authType?: CloudflareAuthType): Promise<ValidationResponse> => {
+  const validateCredentials = async (email: string, apiKey: string, authType?: CloudflareAuthType, accountId?: string): Promise<ValidationResponse> => {
     const { data, error } = await supabase.functions.invoke('validate-cloudflare', {
-      body: { email, apiKey: normalizeApiKey(apiKey), authType },
+      body: { email, apiKey: normalizeApiKey(apiKey), authType, accountId },
     });
 
     if (error) {
@@ -100,7 +101,7 @@ export function useCloudflareAccounts() {
       const normalizedApiKey = normalizeApiKey(input.api_key);
 
       // First validate the credentials
-      const validation = await validateCredentials(input.cloudflare_email, normalizedApiKey, input.auth_type);
+      const validation = await validateCredentials(input.cloudflare_email, normalizedApiKey, input.auth_type, input.accountId);
       
       if (!validation.valid) {
         throw new Error(validation.details || validation.error || 'Invalid credentials');

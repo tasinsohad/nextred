@@ -22,10 +22,11 @@ serve(async (req) => {
   }
 
   try {
-    const { email, apiKey, authType } = await req.json() as {
+    const { email, apiKey, authType, accountId } = await req.json() as {
       email?: string;
       apiKey?: string;
       authType?: CloudflareAuthType;
+      accountId?: string;
     };
 
     const normalizedEmail = typeof email === "string" ? email.trim() : "";
@@ -58,8 +59,17 @@ serve(async (req) => {
     } else {
       authMethod = "API Token";
       console.log("Validating with API Token (Bearer auth)");
+      
+      // Account API Tokens (starting with cfat_) must be verified via the account-specific endpoint
+      const isAccountToken = normalizedApiKey.startsWith("cfat_");
+      const verifyPath = (isAccountToken && accountId) 
+        ? `accounts/${accountId}/tokens/verify` 
+        : "user/tokens/verify";
+
+      console.log(`Verifying token via: ${verifyPath}`);
+      
       // First verify the token itself
-      const verifyRes = await fetch("https://api.cloudflare.com/client/v4/user/tokens/verify", {
+      const verifyRes = await fetch(`https://api.cloudflare.com/client/v4/${verifyPath}`, {
         method: "GET",
         headers: {
           "Authorization": `Bearer ${normalizedApiKey}`,
@@ -72,11 +82,17 @@ serve(async (req) => {
         const errMsg = verifyData.errors?.[0]?.message || "Token verification failed";
         const docUrl = verifyData.errors?.[0]?.documentation_url ? ` See ${verifyData.errors[0].documentation_url}` : "";
         console.error("Token verify failed:", errMsg);
+        
+        let detailMsg = `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Make sure you're using a valid API Token with Zone:Read, Zone:DNS:Edit, and Zone:Page Rules:Edit permissions.`;
+        if (isAccountToken && !accountId) {
+          detailMsg = "Account API Tokens (starting with 'cfat_') require an Account ID for verification. Please provide your Account ID.";
+        }
+
         return new Response(
           JSON.stringify({
             valid: false,
             error: "Invalid API Token",
-            details: `Cloudflare rejected the token: ${errMsg}.${docUrl} If you copied the Authorization header value, remove the leading "Bearer " and paste only the token. Make sure you're using a valid API Token with Zone:Read, Zone:DNS:Edit, and Zone:Page Rules:Edit permissions.`,
+            details: detailMsg,
           }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
