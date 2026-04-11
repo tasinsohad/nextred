@@ -197,7 +197,9 @@ export function AddCloudflareAccountDialog() {
 
             <Alert className="border-amber-500/50 bg-amber-500/10">
               <AlertDescription className="text-sm">
-                <strong>Note:</strong> Credentials are validated against Cloudflare before saving. The Account ID is fetched automatically.
+                <strong>Note:</strong> Credentials are validated against Cloudflare before saving.
+                {apiKey.startsWith('cfat_') && ' Account API Tokens require you to provide the Account ID manually.'}
+                {' '}Required permissions: <strong>Zone:Read</strong>, <strong>DNS:Edit</strong>, <strong>Page Rules:Edit</strong>. For Redirect Rules: <strong>Dynamic Redirect:Edit</strong>.
               </AlertDescription>
             </Alert>
           </div>

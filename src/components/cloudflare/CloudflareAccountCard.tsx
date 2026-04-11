@@ -21,6 +21,7 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
   const [accountName, setAccountName] = useState(account.account_name);
   const [email, setEmail] = useState(account.cloudflare_email);
   const [apiKey, setApiKey] = useState('');
+  const [cfAccountId, setCfAccountId] = useState(account.account_id || '');
   const [showApiKey, setShowApiKey] = useState(false);
   const { updateAccount, deleteAccount } = useCloudflareAccounts();
   const { toast } = useToast();
@@ -33,13 +34,18 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
     e.preventDefault();
     
     try {
-      await updateAccount.mutateAsync({
+      const updatePayload: any = {
         id: account.id,
         account_name: accountName,
         ...(isTokenAccount ? {} : { cloudflare_email: email }),
         ...(apiKey ? { api_key: apiKey } : {}),
         auth_type: isTokenAccount ? 'token' : 'global',
-      });
+      };
+      // If account ID was updated manually, persist it
+      if (cfAccountId && cfAccountId !== account.account_id) {
+        updatePayload.accountId = cfAccountId;
+      }
+      await updateAccount.mutateAsync(updatePayload);
       
       toast({
         title: 'Account updated',
@@ -211,6 +217,22 @@ export function CloudflareAccountCard({ account }: CloudflareAccountCardProps) {
                   )}
                 </p>
               </div>
+
+              {isTokenAccount && (
+                <div className="space-y-2">
+                  <Label htmlFor="edit-cfAccountId">Account ID</Label>
+                  <Input
+                    id="edit-cfAccountId"
+                    value={cfAccountId}
+                    onChange={(e) => setCfAccountId(e.target.value)}
+                    placeholder="32-character Account ID"
+                    className="font-mono text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Required for Account API Tokens (cfat_). Find it in your Cloudflare dashboard.
+                  </p>
+                </div>
+              )}
 
               <Alert className="border-amber-500/50 bg-amber-500/10">
                 <AlertDescription className="text-sm">

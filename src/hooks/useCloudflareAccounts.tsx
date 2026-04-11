@@ -117,7 +117,7 @@ export function useCloudflareAccounts() {
           account_name: input.account_name,
           cloudflare_email: input.auth_type === 'token' ? TOKEN_SENTINEL_EMAIL : input.cloudflare_email,
           api_key_encrypted: encryptedKey,
-          account_id: validation.accountId,
+          account_id: validation.accountId || input.accountId || null,
         })
         .select()
         .single();
@@ -148,12 +148,13 @@ export function useCloudflareAccounts() {
           : updates.cloudflare_email || existingAccount?.cloudflare_email;
 
         if (email) {
-          const validation = await validateCredentials(email, normalizedApiKey, effectiveAuthType);
+          const existingAccountId = existingAccount?.account_id || undefined;
+          const validation = await validateCredentials(email, normalizedApiKey, effectiveAuthType, existingAccountId);
           if (!validation.valid) {
             throw new Error(validation.details || validation.error || 'Invalid credentials');
           }
           updateData.api_key_encrypted = btoa(normalizedApiKey);
-          updateData.account_id = validation.accountId;
+          updateData.account_id = validation.accountId || existingAccountId || null;
         }
       }
 
