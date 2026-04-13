@@ -62,7 +62,7 @@ export default function DashboardHome() {
         <div>
           <h2 className="text-2xl font-bold">Dashboard</h2>
           <p className="text-muted-foreground">
-            Welcome back{user?.user_metadata?.full_name ? `, ${user.user_metadata.full_name}` : ''}
+            Welcome back
           </p>
         </div>
         <Button onClick={() => navigate('/app/bulk')}>
