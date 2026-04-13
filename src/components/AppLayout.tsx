@@ -1,8 +1,7 @@
-import { ReactNode, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
+import { ReactNode } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { LayoutDashboard, ArrowRightLeft, GitBranchPlus, Layers, History, Users, LogOut, Menu, X, Zap, SplitSquareHorizontal } from 'lucide-react';
+import { LayoutDashboard, ArrowRightLeft, GitBranchPlus, Layers, History, Users, Menu, X, Zap, SplitSquareHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 
@@ -21,29 +20,8 @@ const navItems = [
 ];
 
 export function AppLayout({ children }: AppLayoutProps) {
-  const { user, signOut, loading } = useAuth();
   const location = useLocation();
-  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      navigate('/auth');
-    }
-  }, [user, loading, navigate]);
-
-  if (loading || !user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="animate-pulse text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/auth');
-  };
 
   return (
     <div className="min-h-screen bg-background">
