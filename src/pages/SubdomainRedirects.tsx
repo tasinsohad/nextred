@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, XCircle, Clock, Globe, Zap, ArrowRight, Trash2 } from "lucide-react";
+import { ApiSetupGuide } from "@/components/cloudflare/ApiSetupGuide";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -355,6 +356,8 @@ export default function SubdomainRedirects() {
           Bulk configure DNS records and redirect rules for subdomains
         </p>
       </div>
+
+      <ApiSetupGuide feature="subdomain_redirects" />
 
       {/* Step 1: API Token */}
       <Card className="mb-6">
