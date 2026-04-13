@@ -5,7 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { AppLayout } from "@/components/AppLayout";
-import Auth from "./pages/Auth";
 import DashboardHome from "./pages/DashboardHome";
 import TeamPage from "./pages/TeamPage";
 import BulkManager from "./pages/BulkManager";
@@ -26,7 +25,6 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Navigate to="/app" replace />} />
-            <Route path="/auth" element={<Auth />} />
             <Route path="/app" element={<AppLayout><DashboardHome /></AppLayout>} />
             <Route path="/app/bulk" element={<AppLayout><BulkManager /></AppLayout>} />
             <Route path="/app/subdomain-redirects" element={<AppLayout><SubdomainRedirects /></AppLayout>} />
