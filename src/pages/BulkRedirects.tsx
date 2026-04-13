@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle2, XCircle, Globe, Zap, ArrowRight, Trash2, Save, Clock } from "lucide-react";
+import { ApiSetupGuide } from "@/components/cloudflare/ApiSetupGuide";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -332,6 +333,8 @@ export default function BulkRedirects() {
           Bulk configure DNS records and Page Rule redirects for domains and subdomains
         </p>
       </div>
+
+      <ApiSetupGuide feature="bulk_redirects" />
 
       {/* Step 1: Credentials */}
       <Card className="mb-6">

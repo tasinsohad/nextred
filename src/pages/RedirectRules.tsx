@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useCloudflareAccounts } from "@/hooks/useCloudflareAccounts";
 import { Loader2, CheckCircle2, XCircle, Eye, Rocket, AlertTriangle, Globe } from "lucide-react";
+import { ApiSetupGuide } from "@/components/cloudflare/ApiSetupGuide";
 import { useAuth } from "@/hooks/useAuth";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -273,6 +274,8 @@ export default function RedirectRules() {
           Enter domains/subdomains in bulk and redirect them all to a single destination using Cloudflare Redirect Rules.
         </p>
       </div>
+
+      <ApiSetupGuide feature="redirect_rules" />
 
       {/* Credentials */}
       <Card className="mb-6">
