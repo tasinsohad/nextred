@@ -70,20 +70,6 @@ export function AppLayout({ children }: AppLayoutProps) {
             })}
           </nav>
 
-          <div className="p-4 border-t border-border">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-sm">
-                {user.email?.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{user.email}</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" className="w-full justify-start gap-2" onClick={handleSignOut}>
-              <LogOut className="h-3 w-3" />
-              Sign Out
-            </Button>
-          </div>
         </div>
       </aside>
 
