@@ -146,6 +146,7 @@ export type Database = {
           id: string
           updated_at: string
           user_id: string
+          workspace_name: string | null
         }
         Insert: {
           created_at?: string
@@ -154,6 +155,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id: string
+          workspace_name?: string | null
         }
         Update: {
           created_at?: string
@@ -162,6 +164,7 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+          workspace_name?: string | null
         }
         Relationships: []
       }
@@ -383,14 +386,106 @@ export type Database = {
           },
         ]
       }
+      usage_events: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      user_subscriptions: {
+        Row: {
+          created_at: string
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          monthly_dns_limit: number
+          monthly_redirect_limit: number
+          months_granted: number
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          monthly_dns_limit?: number
+          monthly_redirect_limit?: number
+          months_granted?: number
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          monthly_dns_limit?: number
+          monthly_redirect_limit?: number
+          months_granted?: number
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_monthly_usage: {
+        Args: { _event_type: string; _user_id: string }
+        Returns: number
+      }
       get_team_role: {
         Args: { _team_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["team_role"]
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
       }
       is_domain_owner: { Args: { _domain_id: string }; Returns: boolean }
       is_team_member: {
@@ -399,6 +494,7 @@ export type Database = {
       }
     }
     Enums: {
+      app_role: "admin" | "user"
       team_role: "admin" | "editor" | "viewer"
     }
     CompositeTypes: {
@@ -527,6 +623,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: ["admin", "user"],
       team_role: ["admin", "editor", "viewer"],
     },
   },
